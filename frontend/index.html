@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Espresso Flow — ระบบจัดการร้านกาแฟ</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ============ หน้าเข้าสู่ระบบ ============ -->
+  <div class="login-wrap" id="loginView">
+    <div class="login-card">
+      <div class="login-hero">
+        <div>
+          <div class="logo"><span style="font-size:24px">☕</span> Espresso Flow</div>
+          <h1>ระบบจัดการร้านกาแฟ<br>ครบทุกงานหน้าร้าน</h1>
+          <p>ขายหน้าร้าน · ตัดสต็อกอัตโนมัติ · สมาชิกสะสมแต้ม · รายงานยอดขาย</p>
+        </div>
+        <div>
+          <div class="feat"><span>🧾</span><span>ระบบ POS พร้อมพิมพ์ใบเสร็จและตัวเลือกเครื่องดื่ม</span></div>
+          <div class="feat"><span>📦</span><span>ตัดวัตถุดิบตามสูตรทุกครั้งที่ขาย พร้อมแจ้งเตือนของใกล้หมด</span></div>
+          <div class="feat"><span>📊</span><span>สรุปกำไร-ขาดทุน และเมนูขายดีแบบเรียลไทม์</span></div>
+        </div>
+      </div>
+
+      <form class="login-form" id="loginForm">
+        <h2>เข้าสู่ระบบ</h2>
+        <p class="sub">กรอกข้อมูลเพื่อเริ่มใช้งานระบบ</p>
+
+        <div class="field">
+          <label for="username">ชื่อผู้ใช้</label>
+          <input class="input" id="username" name="username" autocomplete="username" placeholder="เช่น admin" required>
+        </div>
+        <div class="field">
+          <label for="password">รหัสผ่าน</label>
+          <input class="input" id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+        </div>
+
+        <div id="loginError" style="display:none;color:#dc2626;font-size:13px;margin-bottom:12px"></div>
+        <button class="btn btn-primary btn-lg btn-block" type="submit" id="loginBtn">เข้าสู่ระบบ</button>
+
+        <div class="demo-hint">
+          <b>บัญชีทดลองใช้งาน (คลิกเพื่อกรอกอัตโนมัติ)</b>
+          <div class="demo-users">
+            <button type="button" data-u="admin" data-p="admin123">เจ้าของร้าน</button>
+            <button type="button" data-u="manager" data-p="manager123">ผู้จัดการ</button>
+            <button type="button" data-u="staff01" data-p="staff123">พนักงาน</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ ระบบหลัก ============ -->
+  <div class="app" id="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="mark">☕</div>
+        <div><b>Espresso Flow</b><span id="brandBranch">สาขาสยามสแควร์</span></div>
+      </div>
+      <nav class="nav" id="nav"></nav>
+      <div class="foot">
+        <div class="who">
+          <div class="avatar" id="userAvatar">A</div>
+          <div><b id="userName">-</b><span id="userRole">-</span></div>
+        </div>
+        <button id="logoutBtn">ออกจากระบบ</button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <button class="menu-toggle" id="menuToggle">☰</button>
+        <div>
+          <h1 id="pageTitle">แดชบอร์ด</h1>
+          <div class="sub" id="pageSub"></div>
+        </div>
+        <div class="spacer"></div>
+        <div class="clock" id="clock"></div>
+      </header>
+      <main class="page" id="page"></main>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
