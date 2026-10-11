@@ -73,10 +73,11 @@ async function draw() {
   else await drawStaff(box);
 }
 
+const kpiSub = (sub) => (sub ? `<div class="delta"><span style="color:var(--muted)">${sub}</span></div>` : '');
 const kpi = (label, value, sub) => `
   <div class="card kpi"><div class="label">${label}</div>
     <div class="value">${value}</div>
-    ${sub ? `<div class="delta"><span style="color:var(--muted)">${sub}</span></div>` : ''}</div>`;
+    ${kpiSub(sub)}</div>`;
 
 // ---------------------------------------------------------------
 async function drawSales(box) {

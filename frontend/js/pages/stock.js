@@ -79,7 +79,7 @@ async function drawList(box) {
           </tr></thead>
           <tbody>${list.length ? list.map((i) => {
             const pct = Math.min(100, Math.round((i.stock_qty / (i.min_qty * 2 || 1)) * 100));
-            const cls = i.stock_status === 'out' ? 'danger' : i.stock_status === 'low' ? 'warn' : '';
+            const cls = { out: 'danger', low: 'warn' }[i.stock_status] || '';
             const badge = { ok: '<span class="badge b-green">ปกติ</span>',
                             low: '<span class="badge b-amber">ใกล้หมด</span>',
                             out: '<span class="badge b-red">หมด</span>' }[i.stock_status];

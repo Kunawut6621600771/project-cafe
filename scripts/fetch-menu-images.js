@@ -8,8 +8,8 @@
  *
  * แหล่งรูป : Unsplash (Unsplash License), TheMealDB, Openverse (Creative Commons)
  */
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 const { products } = require('../backend/database/menu-data');
 
 const OUT = path.join(__dirname, '..', 'frontend', 'assets', 'menu');
@@ -115,8 +115,8 @@ async function resolve(spec, cache) {
         size = await download(url, file);
       } catch (e) {
         // Flickr บางรูปไม่มีขนาด _z → ใช้ต้นฉบับ
-        if (!/_z\.jpg$/.test(url)) throw e;
-        size = await download(url.replace(/_z\.jpg$/, '.jpg'), file);
+        if (!url.endsWith('_z.jpg')) throw e;
+        size = await download(url.slice(0, -'_z.jpg'.length) + '.jpg', file);
       }
       cache.credits[p.sku] = { name: p.name, spec: p.img, ...credit };
       console.log(`✓ ${p.sku} ${p.name}  (${Math.round(size / 1024)} KB)`);

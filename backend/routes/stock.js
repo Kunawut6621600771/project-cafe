@@ -8,6 +8,13 @@ const { wrap, round2 } = require('../utils/helpers');
 
 const manager = [auth, requireRole('owner', 'manager')];
 
+/** สถานะสต็อก : หมด / ใกล้หมด / ปกติ */
+function stockStatus(r) {
+  if (r.stock_qty <= 0) return 'out';
+  if (r.stock_qty <= r.min_qty) return 'low';
+  return 'ok';
+}
+
 // GET /api/stock/ingredients
 router.get('/ingredients', auth, wrap(async (req, res) => {
   const { q, status } = req.query;
@@ -24,7 +31,7 @@ router.get('/ingredients', auth, wrap(async (req, res) => {
   res.json(rows.map((r) => ({
     ...r,
     stock_value: round2(r.stock_qty * r.cost_per_unit),
-    stock_status: r.stock_qty <= 0 ? 'out' : r.stock_qty <= r.min_qty ? 'low' : 'ok',
+    stock_status: stockStatus(r),
   })));
 }));
 
@@ -52,7 +59,7 @@ router.get('/alerts', auth, wrap(async (req, res) => {
 // GET /api/stock/movements
 router.get('/movements', auth, wrap(async (req, res) => {
   const { ingredient_id, type, date_from, date_to } = req.query;
-  const limit = Math.min(200, parseInt(req.query.limit || '50', 10));
+  const limit = Math.min(200, Number.parseInt(req.query.limit || '50', 10));
   const where = [], args = [];
   if (ingredient_id) { where.push('m.ingredient_id = ?'); args.push(Number(ingredient_id)); }
   if (type) { where.push('m.type = ?'); args.push(type); }
@@ -165,7 +172,7 @@ router.post('/movements', auth, wrap(async (req, res) => {
 
 async function nextCode() {
   const row = await db.get('SELECT code FROM ingredients ORDER BY id DESC LIMIT 1');
-  const n = row ? parseInt(String(row.code).replace(/\D/g, ''), 10) + 1 : 1;
+  const n = row ? Number.parseInt(String(row.code).replace(/\D/g, ''), 10) + 1 : 1;
   return `ING-${String(n).padStart(3, '0')}`;
 }
 

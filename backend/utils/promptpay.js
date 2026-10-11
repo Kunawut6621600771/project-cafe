@@ -75,10 +75,10 @@ function parseTlv(str) {
 function parseSlipQr(payload) {
   const s = String(payload || '').trim();
   const top = parseTlv(s);
-  if (!top || !top['00']) return null;
+  if (!top?.['00']) return null;
   const inner = parseTlv(top['00']);
-  if (!inner || !inner['01'] || !inner['02']) return null;
-  const crcOk = top['91'] ? crc16(s.slice(0, s.length - 4)) === top['91'].toUpperCase() : null;
+  if (!inner?.['01'] || !inner['02']) return null;
+  const crcOk = top['91'] ? crc16(s.slice(0, -4)) === top['91'].toUpperCase() : null;
   return {
     bank_code: inner['01'],
     bank_name: BANKS[inner['01']] || `ธนาคาร ${inner['01']}`,

@@ -22,7 +22,7 @@ function auth(req, res, next) {
   try {
     req.user = jwt.verify(token, SECRET);
     next();
-  } catch (e) {
+  } catch {
     return res.status(401).json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' });
   }
 }

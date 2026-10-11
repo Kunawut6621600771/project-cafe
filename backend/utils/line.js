@@ -5,7 +5,7 @@
  *   LINE_CHANNEL_SECRET=...
  *   LINE_CHANNEL_ACCESS_TOKEN=...
  */
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 
 // เปลี่ยนได้เพื่อทดสอบกับเซิร์ฟเวอร์จำลอง
 const API = process.env.LINE_API_BASE || 'https://api.line.me';
@@ -37,10 +37,10 @@ async function call(method, path, body) {
 }
 
 const reply = (replyToken, messages) =>
-  call('POST', '/v2/bot/message/reply', { replyToken, messages: [].concat(messages) });
+  call('POST', '/v2/bot/message/reply', { replyToken, messages: [messages].flat() });
 
 const push = (to, messages) =>
-  call('POST', '/v2/bot/message/push', { to, messages: [].concat(messages) });
+  call('POST', '/v2/bot/message/push', { to, messages: [messages].flat() });
 
 /** ข้อมูลบอท (basicId ใช้สร้างลิงก์เปิดแชท) — เก็บไว้ในหน่วยความจำ */
 let botInfo = null;

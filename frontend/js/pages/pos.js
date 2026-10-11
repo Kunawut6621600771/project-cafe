@@ -1,5 +1,5 @@
 /** หน้าขายหน้าร้าน (POS) */
-import { api, auth } from '../api.js';
+import { api } from '../api.js';
 import { refreshQueueBadge } from '../app.js';
 import {
   $, $$, esc, baht, baht2, num, toast, modal, emptyHTML, productThumb, isImgUrl,
@@ -7,6 +7,7 @@ import {
 } from '../utils.js';
 import { readSlip } from '../slip.js';
 
+let nextUid = 1;      // รหัสบรรทัดในตะกร้า (ใช้แยกบรรทัดเท่านั้น)
 const cart = {
   items: [],          // {uid, product, qty, options:[{id,name,price_delta}], note}
   type: 'takeaway',
@@ -120,8 +121,18 @@ function renderCats() {
   products.forEach((p) => { counts[p.category_id] = (counts[p.category_id] || 0) + 1; });
   $('#catBar').innerHTML = `
     <button data-cat="all" class="${activeCat === 'all' ? 'active' : ''}">ทั้งหมด (${counts.all})</button>
-    ${categories.map((c) => `<button data-cat="${c.id}" class="${activeCat == c.id ? 'active' : ''}">
-        ${c.icon} ${esc(c.name)} (${counts[c.id] || 0})</button>`).join('')}`;
+    ${categories.map((c) => catButton(c, counts[c.id] || 0)).join('')}`;
+}
+
+function slipModeLabel(provider) {
+  if (!provider) return 'อ่าน QR + ยืนยันโดยพนักงาน';
+  return provider === 'easyslip' ? 'ตรวจผ่าน EasySlip' : 'ตรวจผ่าน SlipOK';
+}
+
+function catButton(c, count) {
+  const cls = activeCat == c.id ? 'active' : '';
+  return `<button data-cat="${c.id}" class="${cls}">
+        ${c.icon} ${esc(c.name)} (${count})</button>`;
 }
 
 function filtered() {
@@ -209,7 +220,7 @@ function addToCart(product, qty, options, note) {
   const sig = options.map((o) => o.id).sort().join(',') + '|' + note;
   const found = cart.items.find((i) => i.product.id === product.id && i.sig === sig);
   if (found) found.qty += qty;
-  else cart.items.push({ uid: Date.now() + Math.random(), product, qty, options, note, sig });
+  else cart.items.push({ uid: nextUid++, product, qty, options, note, sig });
   renderCart();
   toast(`เพิ่ม ${product.name} แล้ว`, 'ok');
 }
@@ -298,24 +309,30 @@ function memberDialog() {
   $('#mSearch', m.el).addEventListener('input', (e) => {
     clearTimeout(timer);
     const q = e.target.value.trim();
-    if (!q) return void ($('#mResult', m.el).innerHTML = emptyHTML('พิมพ์เพื่อค้นหาสมาชิก', '🔍'));
-    timer = setTimeout(async () => {
-      const list = await api.searchMember(q);
-      $('#mResult', m.el).innerHTML = list.length ? list.map((x) => `
-        <div class="rank-row" style="cursor:pointer" data-id="${x.id}">
-          <div class="rank-no" style="background:var(--green-100);color:var(--green-800)">${esc(x.name.charAt(0))}</div>
-          <div style="flex:1"><b>${esc(x.name)}</b>
-            <div style="font-size:12px;color:var(--muted)">${esc(x.phone || '-')} · ${esc(x.code)}</div></div>
-          <div style="text-align:right"><b>${num(x.points)}</b><div style="font-size:11px;color:var(--muted)">แต้ม</div></div>
-        </div>`).join('') : emptyHTML('ไม่พบสมาชิก');
-      $$('#mResult .rank-row', m.el).forEach((r) => r.onclick = () => {
-        cart.member = list.find((x) => x.id === Number(r.dataset.id));
-        renderCart(); m.close(); toast(`เลือกสมาชิก ${cart.member.name}`, 'ok');
-      });
-    }, 250);
+    if (!q) {
+      $('#mResult', m.el).innerHTML = emptyHTML('พิมพ์เพื่อค้นหาสมาชิก', '🔍');
+      return;
+    }
+    timer = setTimeout(async () => showMemberResults(m, await api.searchMember(q)), 250);
   });
 
   $('#newMember', m.el).addEventListener('click', () => { m.close(); newMemberDialog(); });
+}
+
+function showMemberResults(m, list) {
+  $('#mResult', m.el).innerHTML = list.length ? list.map((x) => `
+    <div class="rank-row" style="cursor:pointer" data-id="${x.id}">
+      <div class="rank-no" style="background:var(--green-100);color:var(--green-800)">${esc(x.name.charAt(0))}</div>
+      <div style="flex:1"><b>${esc(x.name)}</b>
+        <div style="font-size:12px;color:var(--muted)">${esc(x.phone || '-')} · ${esc(x.code)}</div></div>
+      <div style="text-align:right"><b>${num(x.points)}</b><div style="font-size:11px;color:var(--muted)">แต้ม</div></div>
+    </div>`).join('') : emptyHTML('ไม่พบสมาชิก');
+  $$('#mResult .rank-row', m.el).forEach((r) => {
+    r.onclick = () => {
+      cart.member = list.find((x) => x.id === Number(r.dataset.id));
+      renderCart(); m.close(); toast(`เลือกสมาชิก ${cart.member.name}`, 'ok');
+    };
+  });
 }
 
 function newMemberDialog() {
@@ -423,7 +440,7 @@ async function payDialog() {
           <div class="slip-head">
             <b>ตรวจสลิปโอนเงิน</b>
             <span class="badge ${payCfg.slip_provider ? 'b-green' : 'b-amber'}">
-              ${payCfg.slip_provider ? `ตรวจผ่าน ${payCfg.slip_provider === 'easyslip' ? 'EasySlip' : 'SlipOK'}` : 'อ่าน QR + ยืนยันโดยพนักงาน'}</span>
+              ${slipModeLabel(payCfg.slip_provider)}</span>
           </div>
           <label class="slip-drop" id="slipDrop">
             <input type="file" id="slipFile" accept="image/*" hidden>
@@ -649,6 +666,15 @@ function showQrFullscreen(q) {
 }
 
 // ---------------------------------------------------------------
+const receiptSub = (text) => `<div style="color:#666;font-size:11px;padding-left:8px">└ ${esc(text)}</div>`;
+
+function receiptItem(i) {
+  return `
+        <div class="li"><span>${esc(i.product_name)} x${i.qty}</span><span>${baht2(i.line_total)}</span></div>
+        ${i.options_text ? receiptSub(i.options_text) : ''}
+        ${i.note ? receiptSub(i.note) : ''}`;
+}
+
 export async function showReceipt(orderId) {
   const o = await api.order(orderId);
   const m = modal({
@@ -664,10 +690,7 @@ export async function showReceipt(orderId) {
       <div class="li"><span>ประเภท</span><span>${ORDER_TYPE[o.order_type]}${o.table_no ? ` (โต๊ะ ${esc(o.table_no)})` : ''}</span></div>
       ${o.member_name ? `<div class="li"><span>สมาชิก</span><span>${esc(o.member_name)}</span></div>` : ''}
       <hr>
-      ${o.items.map((i) => `
-        <div class="li"><span>${esc(i.product_name)} x${i.qty}</span><span>${baht2(i.line_total)}</span></div>
-        ${i.options_text ? `<div style="color:#666;font-size:11px;padding-left:8px">└ ${esc(i.options_text)}</div>` : ''}
-        ${i.note ? `<div style="color:#666;font-size:11px;padding-left:8px">└ ${esc(i.note)}</div>` : ''}`).join('')}
+      ${o.items.map(receiptItem).join('')}
       <hr>
       <div class="li"><span>ยอดรวม</span><span>${baht2(o.subtotal)}</span></div>
       ${o.discount ? `<div class="li"><span>ส่วนลด</span><span>-${baht2(o.discount)}</span></div>` : ''}

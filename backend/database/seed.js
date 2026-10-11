@@ -85,7 +85,8 @@ const DEFAULT_SETTINGS = {
 
   const { c } = await db.get('SELECT COUNT(*) c FROM products');
   console.log(`✓ หมวดหมู่ ${categories.length} · กลุ่มตัวเลือก ${optionGroups.length} · เมนูทั้งหมดในระบบ ${c} รายการ`);
-  console.log(`✓ บัญชีทดลอง : ${DEMO_USERS.map((u) => `${u[0]}/${u[1]}`).join(', ')}`);
+  const demoList = DEMO_USERS.map((u) => u[0] + '/' + u[1]).join(', ');
+  console.log(`✓ บัญชีทดลอง : ${demoList}`);
   await closeDb();
 })().catch(async (e) => {
   console.error('❌ seed ล้มเหลว:', e.message);

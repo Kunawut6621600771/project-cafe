@@ -8,13 +8,13 @@
  *   const id = await db.insert('INSERT INTO categories (name) VALUES (?)', 'ชา')
  *   await tx(async (t) => { await t.run(...); await t.insert(...); })
  */
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 const { Pool, types } = require('pg');
 
 // ---- ปรับชนิดข้อมูลที่ pg ส่งกลับ ให้เข้ากับโค้ดเดิม/ฝั่ง frontend ----
-types.setTypeParser(20, (v) => (v === null ? null : parseInt(v, 10)));   // int8 (COUNT/SUM) → number
-types.setTypeParser(1700, (v) => (v === null ? null : parseFloat(v)));   // numeric (ROUND) → number
+types.setTypeParser(20, (v) => (v === null ? null : Number.parseInt(v, 10)));   // int8 (COUNT/SUM) → number
+types.setTypeParser(1700, (v) => (v === null ? null : Number.parseFloat(v)));   // numeric (ROUND) → number
 types.setTypeParser(1114, (v) => v);                                     // timestamp → 'YYYY-MM-DD HH:MM:SS'
 types.setTypeParser(1082, (v) => v);                                     // date      → 'YYYY-MM-DD'
 
@@ -48,7 +48,7 @@ const DB_LABEL = process.env.DATABASE_URL
 /** แปลง ? → $1,$2,... */
 function toPg(sql) {
   let i = 0;
-  return sql.replace(/\?/g, () => `$${++i}`);
+  return sql.replaceAll('?', () => `$${++i}`);
 }
 
 /** รับได้ทั้ง (sql, a, b, c) และ (sql, [a,b,c]) */

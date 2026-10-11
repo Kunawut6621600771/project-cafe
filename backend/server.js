@@ -5,13 +5,15 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
+const path = require('node:path');
 const { initSchema, db, DB_LABEL, TIMEZONE } = require('./database/db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.disable('x-powered-by');             // ไม่บอกเวอร์ชัน/เฟรมเวิร์กของเซิร์ฟเวอร์
+// หน้าเว็บเสิร์ฟจากเซิร์ฟเวอร์นี้เอง (same-origin) จึงไม่เปิด CORS เว้นแต่ตั้ง CORS_ORIGIN (คั่นด้วย ,)
+app.use(cors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : false }));
 app.use(express.json({
   limit: '8mb',                          // รูปสลิปส่งมาเป็น base64
   // เก็บ body ดิบไว้ตรวจลายเซ็น webhook ของ LINE
@@ -79,7 +81,7 @@ app.use((err, req, res, next) => {
 });
 
 // เตรียมฐานข้อมูลก่อนเปิดพอร์ต
-(async () => {
+async function start() {
   try {
     await initSchema();
   } catch (e) {
@@ -94,4 +96,9 @@ app.use((err, req, res, next) => {
     console.log(`    ฐานข้อมูล : ${DB_LABEL}  (timezone ${TIMEZONE})`);
     console.log('    บัญชีทดสอบ: admin / admin123\n');
   });
-})();
+}
+
+// รันตรง (npm start) → เปิดเซิร์ฟเวอร์ / ถูก require จากเทสต์ → ส่ง app ออกไปใช้กับพอร์ตสุ่ม
+if (require.main === module) start();
+
+module.exports = app;

@@ -28,25 +28,25 @@ export const num = (n, d = 0) => Number(n || 0).toLocaleString('th-TH', { maximu
 export function fmtDateTime(s) {
   if (!s) return '-';
   const d = new Date(s.replace(' ', 'T'));
-  if (isNaN(d)) return s;
+  if (Number.isNaN(d.getTime())) return s;
   return d.toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 export function fmtDate(s) {
   if (!s) return '-';
   const d = new Date(String(s).replace(' ', 'T'));
-  if (isNaN(d)) return s;
+  if (Number.isNaN(d.getTime())) return s;
   return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
 }
 export function fmtTime(s) {
   if (!s) return '-';
   const d = new Date(String(s).replace(' ', 'T'));
-  return isNaN(d) ? s : d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  return Number.isNaN(d.getTime()) ? s : d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 }
 /** เวลาที่ผ่านมา : 5 นาทีที่แล้ว */
 export function ago(s) {
   const d = new Date(String(s).replace(' ', 'T'));
   const m = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (isNaN(m)) return '-';
+  if (Number.isNaN(m)) return '-';
   if (m < 1) return 'เมื่อครู่';
   if (m < 60) return `${m} นาทีที่แล้ว`;
   if (m < 1440) return `${Math.floor(m / 60)} ชม.ที่แล้ว`;
@@ -87,6 +87,8 @@ export const statusBadge = (s) => {
 };
 
 // ---------------- Toast ----------------
+const TOAST_ICON = { ok: '✅', err: '⚠️' };
+
 export function toast(msg, type = 'ok') {
   let box = $('#toasts');
   if (!box) {
@@ -96,7 +98,7 @@ export function toast(msg, type = 'ok') {
   }
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.innerHTML = `<span>${type === 'ok' ? '✅' : type === 'err' ? '⚠️' : 'ℹ️'}</span><span>${esc(msg)}</span>`;
+  el.innerHTML = `<span>${TOAST_ICON[type] || 'ℹ️'}</span><span>${esc(msg)}</span>`;
   box.appendChild(el);
   setTimeout(() => {
     el.style.transition = '.2s';
@@ -117,9 +119,9 @@ export function modal({ title, body, footer = '', wide = false, onClose }) {
       ${footer ? `<div class="modal-foot">${footer}</div>` : ''}
     </div>`;
   document.body.appendChild(bg);
-  const close = () => { bg.remove(); onClose && onClose(); };
+  const close = () => { bg.remove(); onClose?.(); };
   bg.addEventListener('click', (e) => {
-    if (e.target === bg || e.target.hasAttribute('data-close')) close();
+    if (e.target === bg || 'close' in e.target.dataset) close();
   });
   const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
   document.addEventListener('keydown', onKey);
@@ -184,7 +186,7 @@ export function lineChart(data, { height = 190, format = baht } = {}) {
   }).join('');
 
   const pts = data.map((d, i) => `${px(i)},${py(d.value)}`).join(' ');
-  const area = `M ${pad.l},${pad.t + ih} L ${pts.split(' ').join(' L ')} L ${px(data.length - 1)},${pad.t + ih} Z`;
+  const area = `M ${pad.l},${pad.t + ih} L ${pts.replaceAll(' ', ' L ')} L ${px(data.length - 1)},${pad.t + ih} Z`;
   const dots = data.map((d, i) =>
     `<circle class="dot" cx="${px(i)}" cy="${py(d.value)}" r="3.5"><title>${esc(d.label)} : ${format(d.value)}</title></circle>`).join('');
   const labels = data.map((d, i) => (data.length > 14 && i % 3 !== 0) ? '' :

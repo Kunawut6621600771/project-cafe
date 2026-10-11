@@ -12,8 +12,8 @@ const { notifyReady } = require('./line');
 // ---------------------------------------------------------------
 router.get('/', auth, wrap(async (req, res) => {
   const { status, order_type, payment_method, date_from, date_to, q } = req.query;
-  const page = Math.max(1, parseInt(req.query.page || '1', 10));
-  const limit = Math.min(100, parseInt(req.query.limit || '20', 10));
+  const page = Math.max(1, Number.parseInt(req.query.page || '1', 10));
+  const limit = Math.min(100, Number.parseInt(req.query.limit || '20', 10));
 
   const where = [], args = [];
   if (status) { where.push('o.status = ?'); args.push(status); }
@@ -86,20 +86,19 @@ router.get('/:id', auth, wrap(async (req, res) => {
 // ---------------------------------------------------------------
 // POST /api/orders : สร้างออเดอร์ + ตัดสต็อก + สะสมแต้ม
 // ---------------------------------------------------------------
-router.post('/', auth, wrap(async (req, res) => {
-  const b = req.body || {};
-  const items = Array.isArray(b.items) ? b.items : [];
-  if (!items.length) return res.status(400).json({ error: 'กรุณาเลือกสินค้าอย่างน้อย 1 รายการ' });
+/** error ที่ตัวจัดการ error กลางแปลงเป็น { error } พร้อม status ให้ */
+const httpError = (status, message) => Object.assign(new Error(message), { status });
 
-  // ---- คำนวณราคาฝั่งเซิร์ฟเวอร์ (ไม่เชื่อราคาจาก client) ----
+/** คำนวณราคาฝั่งเซิร์ฟเวอร์ (ไม่เชื่อราคาจาก client) */
+async function buildLines(items) {
   const lines = [];
   let subtotal = 0, costTotal = 0;
   for (const it of items) {
     const p = await db.get('SELECT * FROM products WHERE id=?', it.product_id);
-    if (!p) return res.status(400).json({ error: `ไม่พบสินค้ารหัส ${it.product_id}` });
-    if (!p.is_available) return res.status(400).json({ error: `"${p.name}" ปิดการขายอยู่` });
+    if (!p) throw httpError(400, `ไม่พบสินค้ารหัส ${it.product_id}`);
+    if (!p.is_available) throw httpError(400, `"${p.name}" ปิดการขายอยู่`);
 
-    const qty = Math.max(1, parseInt(it.qty || 1, 10));
+    const qty = Math.max(1, Number.parseInt(it.qty || 1, 10));
     const chosen = [];
     for (const id of it.options || []) {
       const opt = await db.get('SELECT * FROM options WHERE id=?', id);
@@ -117,31 +116,102 @@ router.post('/', auth, wrap(async (req, res) => {
       note: it.note || null,
     });
   }
-  subtotal = round2(subtotal);
+  return { lines, subtotal: round2(subtotal), costTotal };
+}
 
-  // ---- ส่วนลด ----
-  let discount = 0, promotionId = null;
+/** ส่วนลดจากโค้ดโปรโมชัน หรือส่วนลดที่กรอกเอง */
+async function calcDiscount(b, subtotal) {
   if (b.promotion_code) {
     const pr = await db.get('SELECT * FROM promotions WHERE code=? AND is_active=1', b.promotion_code);
-    if (!pr) return res.status(400).json({ error: 'ไม่พบโค้ดส่วนลดนี้' });
-    if (subtotal < pr.min_total) {
-      return res.status(400).json({ error: `ต้องซื้อขั้นต่ำ ${pr.min_total} บาทจึงใช้โค้ดนี้ได้` });
-    }
-    discount = pr.type === 'percent' ? round2(subtotal * pr.value / 100) : Number(pr.value);
-    promotionId = pr.id;
-  } else if (b.discount) {
-    discount = Math.min(round2(Number(b.discount)), subtotal);
+    if (!pr) throw httpError(400, 'ไม่พบโค้ดส่วนลดนี้');
+    if (subtotal < pr.min_total) throw httpError(400, `ต้องซื้อขั้นต่ำ ${pr.min_total} บาทจึงใช้โค้ดนี้ได้`);
+    const discount = pr.type === 'percent' ? round2(subtotal * pr.value / 100) : Number(pr.value);
+    return { discount, promotionId: pr.id };
   }
+  const discount = b.discount ? Math.min(round2(Number(b.discount)), subtotal) : 0;
+  return { discount, promotionId: null };
+}
 
-  // ---- ใช้แต้มแลกส่วนลด ----
-  let pointsUsed = 0;
-  const member = b.member_id ? await db.get('SELECT * FROM members WHERE id=?', b.member_id) : null;
-  if (b.points_used && member) {
-    const rate = Number(await getSetting('point_redeem_rate', 1));
-    pointsUsed = Math.min(parseInt(b.points_used, 10), member.points);
-    discount = round2(discount + pointsUsed * rate);
+/** แลกแต้มเป็นส่วนลด */
+async function redeemPoints(b, member) {
+  if (!b.points_used || !member) return { pointsUsed: 0, pointsDiscount: 0 };
+  const rate = Number(await getSetting('point_redeem_rate', 1));
+  const pointsUsed = Math.min(Number.parseInt(b.points_used, 10), member.points);
+  return { pointsUsed, pointsDiscount: pointsUsed * rate };
+}
+
+/** สลิปโอนเงิน (พร้อมเพย์ / โอน) ต้องตรงกับยอดบิลและยังไม่ถูกใช้ */
+async function checkSlip(b, payment, total) {
+  if (!b.slip_id) {
+    if (['promptpay', 'transfer'].includes(payment) && (await getSetting('require_slip', '1')) === '1') {
+      throw httpError(400, 'กรุณาตรวจสลิปโอนเงินก่อนยืนยันการชำระ');
+    }
+    return null;
   }
-  discount = Math.min(discount, subtotal);
+  const slip = await db.get('SELECT * FROM payment_slips WHERE id=?', b.slip_id);
+  if (!slip) throw httpError(400, 'ไม่พบข้อมูลสลิป กรุณาตรวจสลิปใหม่');
+  if (slip.order_id) throw httpError(409, 'สลิปนี้ถูกใช้ชำระบิลอื่นไปแล้ว');
+  if (Math.abs(round2(slip.expected_amount) - total) > 0.009) {
+    throw httpError(400, 'ยอดบิลเปลี่ยนหลังตรวจสลิป กรุณาตรวจสลิปใหม่อีกครั้ง');
+  }
+  return slip;
+}
+
+/** เปิดใช้คิวบาริสต้า → ออเดอร์เข้าคิว 'รอทำ' (จ่ายเงินแล้ว) แล้วค่อยปิดเป็น 'สำเร็จ' เมื่อส่งให้ลูกค้า */
+async function resolveStatus(requested) {
+  if (['pending', 'completed'].includes(requested)) return requested;
+  const useQueue = (await getSetting('use_queue', '1')) === '1';
+  return useQueue ? 'pending' : 'completed';
+}
+
+/** ตัดสต็อกตามสูตร */
+async function deductStock(t, lines, oid, orderNo, userId) {
+  const usage = new Map();
+  for (const l of lines) {
+    const rows = await t.all('SELECT * FROM recipes WHERE product_id=?', l.product.id);
+    rows.forEach((r) => usage.set(r.ingredient_id, (usage.get(r.ingredient_id) || 0) + r.qty * l.qty));
+  }
+  for (const [ingId, used] of usage) {
+    const ing = await t.get('SELECT * FROM ingredients WHERE id=?', ingId);
+    if (!ing) continue;
+    const after = round2(ing.stock_qty - used);
+    await t.run(`UPDATE ingredients SET stock_qty = stock_qty - ?,
+                 updated_at=LOCALTIMESTAMP(0) WHERE id=?`, used, ingId);
+    await t.run(`INSERT INTO stock_movements
+      (ingredient_id,type,qty,balance_after,cost,ref_type,ref_id,note,user_id)
+      VALUES (?,'out',?,?,?,'order',?,?,?)`,
+      ingId, -used, after, round2(used * ing.cost_per_unit), oid, `ขาย ${orderNo}`, userId);
+  }
+}
+
+/** แต้มสมาชิก : ตัดแต้มที่แลก + เพิ่มแต้มที่ได้ + อัปเดตยอดสะสม/ระดับ */
+async function updateMemberPoints(t, { member, pointsUsed, pointsEarned, total, tier, oid, orderNo }) {
+  let balance = member.points;
+  if (pointsUsed > 0) {
+    balance -= pointsUsed;
+    await t.run(`INSERT INTO point_transactions (member_id,points,balance_after,reason,order_id)
+                 VALUES (?,?,?,?,?)`, member.id, -pointsUsed, balance, 'แลกแต้มเป็นส่วนลด', oid);
+  }
+  if (pointsEarned > 0) {
+    balance += pointsEarned;
+    await t.run(`INSERT INTO point_transactions (member_id,points,balance_after,reason,order_id)
+                 VALUES (?,?,?,?,?)`, member.id, pointsEarned, balance, `ซื้อสินค้า ${orderNo}`, oid);
+  }
+  await t.run(`UPDATE members SET points=?, total_spent=?, visits=visits+1,
+               last_visit=CURRENT_DATE, tier=? WHERE id=?`,
+    balance, round2(member.total_spent + total), tier, member.id);
+}
+
+router.post('/', auth, wrap(async (req, res) => {
+  const b = req.body || {};
+  const items = Array.isArray(b.items) ? b.items : [];
+  if (!items.length) return res.status(400).json({ error: 'กรุณาเลือกสินค้าอย่างน้อย 1 รายการ' });
+
+  const { lines, subtotal, costTotal } = await buildLines(items);
+  const promo = await calcDiscount(b, subtotal);
+  const member = b.member_id ? await db.get('SELECT * FROM members WHERE id=?', b.member_id) : null;
+  const { pointsUsed, pointsDiscount } = await redeemPoints(b, member);
+  const discount = Math.min(round2(promo.discount + pointsDiscount), subtotal);
   const total = round2(subtotal - discount);
 
   const payment = b.payment_method || 'cash';
@@ -149,23 +219,10 @@ router.post('/', auth, wrap(async (req, res) => {
   if (payment === 'cash' && received < total) {
     return res.status(400).json({ error: 'จำนวนเงินที่รับมาน้อยกว่ายอดที่ต้องชำระ' });
   }
-  // ---- สลิปโอนเงิน (พร้อมเพย์ / โอน) ----
-  let slip = null;
-  if (b.slip_id) {
-    slip = await db.get('SELECT * FROM payment_slips WHERE id=?', b.slip_id);
-    if (!slip) return res.status(400).json({ error: 'ไม่พบข้อมูลสลิป กรุณาตรวจสลิปใหม่' });
-    if (slip.order_id) return res.status(409).json({ error: 'สลิปนี้ถูกใช้ชำระบิลอื่นไปแล้ว' });
-    if (Math.abs(round2(slip.expected_amount) - total) > 0.009) {
-      return res.status(400).json({ error: 'ยอดบิลเปลี่ยนหลังตรวจสลิป กรุณาตรวจสลิปใหม่อีกครั้ง' });
-    }
-  } else if (['promptpay', 'transfer'].includes(payment) && (await getSetting('require_slip', '1')) === '1') {
-    return res.status(400).json({ error: 'กรุณาตรวจสลิปโอนเงินก่อนยืนยันการชำระ' });
-  }
+  const slip = await checkSlip(b, payment, total);
 
   const pointsEarned = member ? Math.floor(total * Number(await getSetting('points_per_baht', 0.05))) : 0;
-  // เปิดใช้คิวบาริสต้า → ออเดอร์เข้าคิว 'รอทำ' (จ่ายเงินแล้ว) แล้วค่อยปิดเป็น 'สำเร็จ' เมื่อส่งให้ลูกค้า
-  const useQueue = (await getSetting('use_queue', '1')) === '1';
-  const status = ['pending', 'completed'].includes(b.status) ? b.status : (useQueue ? 'pending' : 'completed');
+  const status = await resolveStatus(b.status);
   const tier = member ? await calcTier(round2(member.total_spent + total)) : null;
 
   // ---- บันทึกทั้งหมดใน transaction เดียว ----
@@ -177,8 +234,8 @@ router.post('/', auth, wrap(async (req, res) => {
       (order_no,order_type,table_no,member_id,user_id,shift_id,subtotal,discount,promotion_id,total,
        cost_total,payment_method,received,change_amount,points_earned,status,note,paid_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,LOCALTIMESTAMP(0))`,
-      orderNo, b.order_type || 'takeaway', b.table_no || null, member ? member.id : null,
-      req.user.id, shift ? shift.id : null, subtotal, discount, promotionId, total,
+      orderNo, b.order_type || 'takeaway', b.table_no || null, member?.id ?? null,
+      req.user.id, shift?.id ?? null, subtotal, discount, promo.promotionId, total,
       round2(costTotal), payment, received, round2(received - total), pointsEarned, status,
       b.note || null);
 
@@ -194,44 +251,11 @@ router.post('/', auth, wrap(async (req, res) => {
     if (slip) {
       const { rowCount } = await t.run(
         'UPDATE payment_slips SET order_id=? WHERE id=? AND order_id IS NULL', oid, slip.id);
-      if (!rowCount) throw Object.assign(new Error('สลิปนี้ถูกใช้ชำระบิลอื่นไปแล้ว'), { status: 409 });
+      if (!rowCount) throw httpError(409, 'สลิปนี้ถูกใช้ชำระบิลอื่นไปแล้ว');
     }
 
-    // ---- ตัดสต็อกตามสูตร ----
-    const usage = new Map();
-    for (const l of lines) {
-      const rows = await t.all('SELECT * FROM recipes WHERE product_id=?', l.product.id);
-      rows.forEach((r) => usage.set(r.ingredient_id, (usage.get(r.ingredient_id) || 0) + r.qty * l.qty));
-    }
-    for (const [ingId, used] of usage) {
-      const ing = await t.get('SELECT * FROM ingredients WHERE id=?', ingId);
-      if (!ing) continue;
-      const after = round2(ing.stock_qty - used);
-      await t.run(`UPDATE ingredients SET stock_qty = stock_qty - ?,
-                   updated_at=LOCALTIMESTAMP(0) WHERE id=?`, used, ingId);
-      await t.run(`INSERT INTO stock_movements
-        (ingredient_id,type,qty,balance_after,cost,ref_type,ref_id,note,user_id)
-        VALUES (?,'out',?,?,?,'order',?,?,?)`,
-        ingId, -used, after, round2(used * ing.cost_per_unit), oid, `ขาย ${orderNo}`, req.user.id);
-    }
-
-    // ---- แต้มสมาชิก ----
-    if (member) {
-      let balance = member.points;
-      if (pointsUsed > 0) {
-        balance -= pointsUsed;
-        await t.run(`INSERT INTO point_transactions (member_id,points,balance_after,reason,order_id)
-                     VALUES (?,?,?,?,?)`, member.id, -pointsUsed, balance, 'แลกแต้มเป็นส่วนลด', oid);
-      }
-      if (pointsEarned > 0) {
-        balance += pointsEarned;
-        await t.run(`INSERT INTO point_transactions (member_id,points,balance_after,reason,order_id)
-                     VALUES (?,?,?,?,?)`, member.id, pointsEarned, balance, `ซื้อสินค้า ${orderNo}`, oid);
-      }
-      await t.run(`UPDATE members SET points=?, total_spent=?, visits=visits+1,
-                   last_visit=CURRENT_DATE, tier=? WHERE id=?`,
-        balance, round2(member.total_spent + total), tier, member.id);
-    }
+    await deductStock(t, lines, oid, orderNo, req.user.id);
+    if (member) await updateMemberPoints(t, { member, pointsUsed, pointsEarned, total, tier, oid, orderNo });
 
     // ---- อัปเดตยอดกะ ----
     if (shift && status === 'completed') {

@@ -11,6 +11,11 @@ const { providerName, verifyWithProvider, SlipError } = require('../utils/slip-v
 
 const SLIP_MAX_AGE_HOURS = Number(process.env.SLIP_MAX_AGE_HOURS || 24);
 
+/** error ที่ตัวจัดการ error กลางแปลงเป็น { error } พร้อม status ให้ */
+const httpError = (status, message) => Object.assign(new Error(message), { status });
+/** ยอดเงินต้องเป็นตัวเลขจริงและมากกว่า 0 (กัน NaN จากข้อมูลที่ไม่ใช่ตัวเลข) */
+const isValidAmount = (n) => Number.isFinite(n) && n > 0;
+
 // ---------------------------------------------------------------
 // GET /api/payments/config : สถานะการตั้งค่ารับชำระเงิน
 // ---------------------------------------------------------------
@@ -30,7 +35,7 @@ router.get('/config', auth, wrap(async (req, res) => {
 // ---------------------------------------------------------------
 router.get('/promptpay-qr', auth, wrap(async (req, res) => {
   const amount = round2(Number(req.query.amount || 0));
-  if (!(amount > 0)) return res.status(400).json({ error: 'ยอดเงินไม่ถูกต้อง' });
+  if (!isValidAmount(amount)) return res.status(400).json({ error: 'ยอดเงินไม่ถูกต้อง' });
   const id = await getSetting('promptpay_id', '');
   if (!normalizeTarget(id)) {
     return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่าเลขพร้อมเพย์ของร้าน (ตั้งค่า → ข้อมูลร้าน)' });
@@ -51,42 +56,64 @@ router.get('/promptpay-qr', auth, wrap(async (req, res) => {
 //   body : { amount, qr_payload?, image? (data URL), manual_confirm? }
 //   คืน  : { status: 'verified' | 'manual' | 'needs_confirm', slip }
 // ---------------------------------------------------------------
+/** ไม่มี API : อ่าน QR บนสลิป แล้วให้พนักงานยืนยันยอดเอง */
+async function verifyManually(b, qr, expected, userId) {
+  if (!qr) throw httpError(400, 'อ่าน QR บนสลิปไม่ได้ — ถ่ายรูปให้เห็น QR มุมสลิปชัดๆ แล้วลองใหม่');
+  if (!b.manual_confirm) {
+    return {
+      status: 'needs_confirm',
+      slip: { trans_ref: qr.trans_ref, sending_bank: qr.bank_name, expected_amount: expected },
+      message: 'ยังไม่ได้เชื่อมต่อ API ตรวจสลิป — กรุณาตรวจยอดเงินและชื่อผู้รับบนสลิปด้วยตนเอง',
+    };
+  }
+  const slip = await saveSlip({
+    trans_ref: qr.trans_ref, provider: 'manual', status: 'manual', amount: null, expected,
+    sending_bank: qr.bank_name, qr_payload: b.qr_payload, user_id: userId,
+  });
+  return { status: 'manual', slip };
+}
+
+/** เลขท้ายพร้อมเพย์ที่ธนาคารเปิดให้เห็น เช่น xxx-xxx-5678 → 5678 */
+function proxyTail(receiverProxy) {
+  const shown = String(receiverProxy || '').replace(/[^\dxX]/g, '');
+  return shown.split(/[xX]/).at(-1);
+}
+
+/** ตรวจผลจากผู้ให้บริการ : สลิปซ้ำ / ยอดเงิน / บัญชีผู้รับ / อายุสลิป */
+async function checkProviderResult(r, expected) {
+  const used = await findUsed(r.trans_ref);
+  if (used) throw httpError(409, used);
+
+  if (Math.abs(round2(r.amount) - expected) > 0.009) {
+    throw httpError(400, `ยอดเงินในสลิป ฿${r.amount.toFixed(2)} ไม่ตรงกับยอดที่ต้องชำระ ฿${expected.toFixed(2)}`);
+  }
+
+  const shopId = String(await getSetting('promptpay_id', '')).replaceAll(/\D/g, '');
+  const tail = proxyTail(r.receiver_proxy);
+  if (shopId && tail.length >= 3 && !shopId.endsWith(tail)) {
+    throw httpError(400, `บัญชีผู้รับในสลิป (${r.receiver_proxy}) ไม่ใช่พร้อมเพย์ของร้าน`);
+  }
+
+  const ageH = r.date ? (Date.now() - new Date(r.date).getTime()) / 36e5 : 0;
+  if (ageH > SLIP_MAX_AGE_HOURS) {
+    throw httpError(400, `สลิปนี้เป็นรายการเก่าเกิน ${SLIP_MAX_AGE_HOURS} ชั่วโมง`);
+  }
+}
+
 router.post('/verify-slip', auth, wrap(async (req, res) => {
   const b = req.body || {};
   const expected = round2(Number(b.amount || 0));
-  if (!(expected > 0)) return res.status(400).json({ error: 'ยอดเงินไม่ถูกต้อง' });
+  if (!isValidAmount(expected)) return res.status(400).json({ error: 'ยอดเงินไม่ถูกต้อง' });
 
   const qr = b.qr_payload ? parseSlipQr(b.qr_payload) : null;
   if (b.qr_payload && !qr) {
     return res.status(400).json({ error: 'QR ในรูปนี้ไม่ใช่ QR ของสลิปธนาคาร (อาจเป็น QR รับเงิน หรือรูปไม่ชัด)' });
   }
-  if (qr) {
-    const used = await findUsed(qr.trans_ref);
-    if (used) return res.status(409).json({ error: used });
-  }
+  const usedQr = qr ? await findUsed(qr.trans_ref) : null;
+  if (usedQr) return res.status(409).json({ error: usedQr });
 
   const provider = providerName();
-
-  // ---- ไม่มี API : อ่าน QR บนสลิป แล้วให้พนักงานยืนยันยอดเอง ----
-  if (!provider) {
-    if (!qr) {
-      return res.status(400).json({
-        error: 'อ่าน QR บนสลิปไม่ได้ — ถ่ายรูปให้เห็น QR มุมสลิปชัดๆ แล้วลองใหม่',
-      });
-    }
-    if (!b.manual_confirm) {
-      return res.json({
-        status: 'needs_confirm',
-        slip: { trans_ref: qr.trans_ref, sending_bank: qr.bank_name, expected_amount: expected },
-        message: 'ยังไม่ได้เชื่อมต่อ API ตรวจสลิป — กรุณาตรวจยอดเงินและชื่อผู้รับบนสลิปด้วยตนเอง',
-      });
-    }
-    const slip = await saveSlip({
-      trans_ref: qr.trans_ref, provider: 'manual', status: 'manual', amount: null, expected,
-      sending_bank: qr.bank_name, qr_payload: b.qr_payload, user_id: req.user.id,
-    });
-    return res.json({ status: 'manual', slip });
-  }
+  if (!provider) return res.json(await verifyManually(b, qr, expected, req.user.id));
 
   // ---- ตรวจกับผู้ให้บริการ ----
   let r;
@@ -96,30 +123,7 @@ router.post('/verify-slip', auth, wrap(async (req, res) => {
     if (e instanceof SlipError) return res.status(e.code === 'network' ? 502 : 400).json({ error: e.message });
     throw e;
   }
-
-  const used = await findUsed(r.trans_ref);
-  if (used) return res.status(409).json({ error: used });
-
-  if (Math.abs(round2(r.amount) - expected) > 0.009) {
-    return res.status(400).json({
-      error: `ยอดเงินในสลิป ฿${r.amount.toFixed(2)} ไม่ตรงกับยอดที่ต้องชำระ ฿${expected.toFixed(2)}`,
-    });
-  }
-
-  // บัญชีผู้รับ : เทียบเลขท้ายพร้อมเพย์ที่ธนาคารเปิดให้เห็น (เช่น xxx-xxx-5678)
-  const shopId = String(await getSetting('promptpay_id', '')).replace(/\D/g, '');
-  const shown = String(r.receiver_proxy || '').replace(/[^\dxX]/g, '');
-  const tail = shown.match(/\d+$/)?.[0] || '';
-  if (shopId && tail.length >= 3 && !shopId.endsWith(tail)) {
-    return res.status(400).json({ error: `บัญชีผู้รับในสลิป (${r.receiver_proxy}) ไม่ใช่พร้อมเพย์ของร้าน` });
-  }
-
-  if (r.date) {
-    const ageH = (Date.now() - new Date(r.date).getTime()) / 36e5;
-    if (ageH > SLIP_MAX_AGE_HOURS) {
-      return res.status(400).json({ error: `สลิปนี้เป็นรายการเก่าเกิน ${SLIP_MAX_AGE_HOURS} ชั่วโมง` });
-    }
-  }
+  await checkProviderResult(r, expected);
 
   const slip = await saveSlip({
     trans_ref: r.trans_ref, provider, status: 'verified', amount: r.amount, expected,

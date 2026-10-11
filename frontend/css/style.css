@@ -115,7 +115,7 @@ a { color: inherit; text-decoration: none; }
   display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px;
   color: #d1fae5; font-size: 13.5px; margin-bottom: 2px; cursor: pointer; transition: .15s;
 }
-.nav a:hover { background: rgba(255,255,255,.1); color: #fff; }
+.nav a:hover { background: #2d7448; color: #fff; }
 .nav a.active { background: #fff; color: var(--green-800); font-weight: 600; }
 .nav a .ico { width: 18px; text-align: center; font-size: 15px; }
 .nav a .badge-n {
@@ -131,7 +131,7 @@ a { color: inherit; text-decoration: none; }
 .sidebar .foot .who div b { font-size: 13px; display: block; }
 .sidebar .foot .who div span { font-size: 11px; color: #a7f3c0; }
 .sidebar .foot button {
-  width: 100%; background: rgba(255,255,255,.12); border: none; color: #fff;
+  width: 100%; background: #306846; border: none; color: #fff;
   padding: 7px; border-radius: 8px; cursor: pointer; font-size: 12.5px;
 }
 .sidebar .foot button:hover { background: rgba(255,255,255,.22); }
@@ -514,6 +514,6 @@ table.tbl tbody tr:last-child td { border-bottom: none; }
 .slip-thumb { width: 64px; height: 96px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line-2); flex-shrink: 0; }
 
 /* ---------- LINE Bot ---------- */
-.b-line { background: #06c755; color: #fff; margin-left: 6px; }
+.b-line { background: #047a35; color: #fff; margin-left: 6px; }  /* เขียว LINE เข้มขึ้นให้ตัวอักษรขาวอ่านง่าย */
 .line-rcpt { display: flex; gap: 10px; align-items: center; font-size: 11.5px; line-height: 1.45; }
 .line-rcpt img { width: 92px; height: 92px; flex-shrink: 0; }

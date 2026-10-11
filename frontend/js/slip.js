@@ -41,7 +41,7 @@ function drawScaled(img, maxSide) {
  * ลองอ่าน QR หลายขนาด เพราะ QR มุมสลิปมักเล็ก
  */
 export async function readSlip(file) {
-  if (!file || !/^image\//.test(file.type)) throw new Error('กรุณาเลือกไฟล์รูปภาพ');
+  if (!file?.type.startsWith('image/')) throw new Error('กรุณาเลือกไฟล์รูปภาพ');
   const [jsQR, img] = await Promise.all([loadJsQR(), loadImage(file)]);
 
   let qr = null;

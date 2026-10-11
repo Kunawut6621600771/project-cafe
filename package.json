@@ -9,7 +9,10 @@
     "dev": "node --watch backend/server.js",
     "reset": "node backend/database/reset.js",
     "seed": "node backend/database/seed.js",
-    "menu:images": "node scripts/fetch-menu-images.js"
+    "menu:images": "node scripts/fetch-menu-images.js",
+    "pretest": "node test/setup-db.js",
+    "test": "node --test --test-concurrency=1 \"test/*.test.*\"",
+    "test:coverage": "npm run pretest && node --test --test-concurrency=1 --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"node_modules/**\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/lcov.info \"test/*.test.*\" && node scripts/lcov-relative.js"
   },
   "keywords": [
     "cafe",
@@ -28,5 +31,8 @@
     "jsqr": "^1.4.0",
     "pg": "^8.23.0",
     "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
   }
 }

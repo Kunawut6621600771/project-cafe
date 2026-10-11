@@ -23,7 +23,7 @@ function providerName() {
 
 /** แยก data URL → Blob สำหรับส่งแบบ multipart */
 function dataUrlToBlob(dataUrl) {
-  const m = String(dataUrl || '').match(/^data:(image\/[\w+.-]+);base64,(.+)$/);
+  const m = /^data:(image\/[\w+.-]+);base64,(.+)$/.exec(String(dataUrl || ''));
   if (!m) return null;
   return new Blob([Buffer.from(m[2], 'base64')], { type: m[1] });
 }

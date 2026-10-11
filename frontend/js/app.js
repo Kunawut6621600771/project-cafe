@@ -71,7 +71,8 @@ function renderNav() {
   const groups = {};
   Object.entries(ROUTES).forEach(([key, r]) => {
     if (r.roles && !r.roles.includes(user.role)) return;
-    (groups[r.group] ||= []).push([key, r]);
+    groups[r.group] ??= [];
+    groups[r.group].push([key, r]);
   });
 
   $('#nav').innerHTML = Object.entries(groups).map(([g, items]) => `
@@ -168,5 +169,10 @@ setInterval(tickClock, 30000);
 setInterval(() => { if (auth.token) refreshQueueBadge(); }, 60000);
 
 if (auth.token) {
-  api.me().then(startApp).catch(logout);
+  try {
+    await api.me();
+    await startApp();
+  } catch {
+    logout();
+  }
 }

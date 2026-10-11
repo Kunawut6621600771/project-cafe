@@ -9,8 +9,8 @@ const { wrap, nextMemberCode } = require('../utils/helpers');
 // GET /api/members
 router.get('/', auth, wrap(async (req, res) => {
   const { q, tier } = req.query;
-  const page = Math.max(1, parseInt(req.query.page || '1', 10));
-  const limit = Math.min(100, parseInt(req.query.limit || '20', 10));
+  const page = Math.max(1, Number.parseInt(req.query.page || '1', 10));
+  const limit = Math.min(100, Number.parseInt(req.query.limit || '20', 10));
   const where = ['is_active = 1'], args = [];
   if (q) { where.push('(name ILIKE ? OR phone ILIKE ? OR code ILIKE ?)'); args.push(`%${q}%`, `%${q}%`, `%${q}%`); }
   if (tier) { where.push('tier = ?'); args.push(tier); }
@@ -88,7 +88,7 @@ router.put('/:id', auth, wrap(async (req, res) => {
 router.post('/:id/points', auth, requireRole('owner', 'manager'), wrap(async (req, res) => {
   const m = await db.get('SELECT * FROM members WHERE id=?', req.params.id);
   if (!m) return res.status(404).json({ error: 'ไม่พบสมาชิก' });
-  const points = parseInt(req.body?.points, 10);
+  const points = Number.parseInt(req.body?.points, 10);
   if (!Number.isFinite(points) || points === 0) return res.status(400).json({ error: 'จำนวนแต้มไม่ถูกต้อง' });
   const balance = m.points + points;
   if (balance < 0) return res.status(400).json({ error: `แต้มไม่พอ คงเหลือ ${m.points} แต้ม` });

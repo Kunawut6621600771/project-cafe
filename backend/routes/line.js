@@ -6,7 +6,7 @@
  *   2. ลูกค้ากดส่ง → webhook ผูก LINE userId กับออเดอร์
  *   3. พนักงานกด "พร้อมเสิร์ฟ" ในหน้าคิว → notifyReady() ส่งข้อความหาลูกค้า
  */
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const router = require('express').Router();
 const QRCode = require('qrcode');
 const { db } = require('../database/db');
@@ -98,7 +98,7 @@ async function handleEvent(ev) {
     return ev.replyToken && ev.type === 'message' ? line.reply(ev.replyToken, text(HELP)) : null;
   }
 
-  const m = ev.message.text.match(/(ORD\d{8}-\d{4})[^A-Za-z0-9]+(?:รหัส\s*)?([A-Z0-9]{4,8})\b/i);
+  const m = ev.message.text.match(/(ORD\d{8}-\d{4})[^A-Z0-9]+(?:รหัส\s*)?([A-Z0-9]{4,8})\b/i);
   if (!m) return line.reply(ev.replyToken, text(HELP));
 
   const o = await db.get('SELECT * FROM orders WHERE order_no=? AND line_token=?', m[1].toUpperCase(), m[2].toUpperCase());

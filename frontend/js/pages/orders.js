@@ -4,7 +4,7 @@ import { refreshQueueBadge } from '../app.js';
 import { showReceipt } from './pos.js';
 import {
   $, $$, esc, baht, num, toast, modal, confirmBox, emptyHTML, statusBadge,
-  ORDER_TYPE, PAYMENT, PAYMENT_ICON, fmtDateTime, fmtTime, ago, todayStr, dateShift,
+  ORDER_TYPE, PAYMENT, PAYMENT_ICON, fmtDateTime, ago, todayStr, dateShift,
 } from '../utils.js';
 
 const NEXT = { pending: 'preparing', preparing: 'ready', ready: 'completed' };
@@ -190,20 +190,32 @@ async function drawHistory(box) {
   $('#exportCsv').onclick = () => exportCsv(r.data);
 }
 
+function pagerItem(i, cur) {
+  if (i === '…') return '<span style="padding:0 4px;color:var(--muted)">…</span>';
+  const cls = i === cur ? 'active' : '';
+  return `<button data-page="${i}" class="${cls}">${i}</button>`;
+}
+
 function pager(r) {
   if (r.pages <= 1) return '';
   const cur = r.page;
   const list = [];
   for (let i = 1; i <= r.pages; i++) {
     if (i === 1 || i === r.pages || Math.abs(i - cur) <= 2) list.push(i);
-    else if (list[list.length - 1] !== '…') list.push('…');
+    else if (list.at(-1) !== '…') list.push('…');
   }
   return `<div class="pager">
     <button data-page="${cur - 1}" ${cur === 1 ? 'disabled' : ''}>‹</button>
-    ${list.map((i) => i === '…' ? '<span style="padding:0 4px;color:var(--muted)">…</span>'
-      : `<button data-page="${i}" class="${i === cur ? 'active' : ''}">${i}</button>`).join('')}
+    ${list.map((i) => pagerItem(i, cur)).join('')}
     <button data-page="${cur + 1}" ${cur === r.pages ? 'disabled' : ''}>›</button>
   </div>`;
+}
+
+function discountLine(o) {
+  if (!o.discount) return '';
+  const promo = o.promotion_name ? ' (' + esc(o.promotion_name) + ')' : '';
+  return `<div class="sum-line" style="color:var(--red)"><span>ส่วนลด${promo}</span>
+          <span class="mono">-${baht(o.discount)}</span></div>`;
 }
 
 async function viewOrder(id) {
@@ -246,8 +258,7 @@ async function viewOrder(id) {
 
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line-2)">
         <div class="sum-line"><span>ยอดรวม</span><span class="mono">${baht(o.subtotal)}</span></div>
-        ${o.discount ? `<div class="sum-line" style="color:var(--red)"><span>ส่วนลด${o.promotion_name ? ` (${esc(o.promotion_name)})` : ''}</span>
-          <span class="mono">-${baht(o.discount)}</span></div>` : ''}
+        ${discountLine(o)}
         <div class="sum-line total"><span>ยอดสุทธิ</span><span class="mono">${baht(o.total)}</span></div>
         ${o.points_earned ? `<div class="sum-line"><span>แต้มที่ได้รับ</span><span>+${o.points_earned} แต้ม</span></div>` : ''}
       </div>`,
@@ -276,7 +287,7 @@ async function viewOrder(id) {
 function exportCsv(rows) {
   const head = ['เลขที่', 'วันที่', 'รายการ', 'ลูกค้า', 'ประเภท', 'ชำระเงิน', 'ยอดรวม', 'ส่วนลด', 'ยอดสุทธิ', 'สถานะ'];
   const body = rows.map((o) => [
-    o.order_no, o.created_at, (o.items_summary || '').replace(/"/g, "'"),
+    o.order_no, o.created_at, (o.items_summary || '').replaceAll('"', "'"),
     o.member_name || 'ทั่วไป', ORDER_TYPE[o.order_type], PAYMENT[o.payment_method] || '',
     o.subtotal, o.discount, o.total, o.status,
   ]);

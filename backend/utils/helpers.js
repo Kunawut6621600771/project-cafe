@@ -39,7 +39,7 @@ async function nextOrderNo(conn = db) {
 /** สร้างรหัสสมาชิกถัดไป MB-0009 */
 async function nextMemberCode(conn = db) {
   const row = await conn.get('SELECT code FROM members ORDER BY id DESC LIMIT 1');
-  const n = row ? parseInt(String(row.code).replace(/\D/g, ''), 10) + 1 : 1;
+  const n = row ? Number.parseInt(String(row.code).replace(/\D/g, ''), 10) + 1 : 1;
   return `MB-${String(n).padStart(4, '0')}`;
 }
 

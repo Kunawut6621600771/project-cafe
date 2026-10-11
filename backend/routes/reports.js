@@ -26,7 +26,10 @@ router.get('/dashboard', auth, wrap(async (req, res) => {
     FROM orders WHERE ${DONE}
       AND to_char(created_at,'YYYY-MM') = to_char(LOCALTIMESTAMP,'YYYY-MM')`);
 
-  const pct = (cur, prev) => (prev > 0 ? Math.round(((cur - prev) / prev) * 1000) / 10 : cur > 0 ? 100 : 0);
+  const pct = (cur, prev) => {
+    if (prev > 0) return Math.round(((cur - prev) / prev) * 1000) / 10;
+    return cur > 0 ? 100 : 0;
+  };
 
   // ยอดขาย 7 วันล่าสุด
   const daily = await db.all(`

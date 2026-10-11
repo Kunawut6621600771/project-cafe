@@ -43,13 +43,66 @@ async function draw() {
 // ---------------------------------------------------------------
 // ข้อมูลร้าน
 // ---------------------------------------------------------------
+const hintHTML = (hint) => (hint ? '<div class="hint">' + hint + '</div>' : '');
+
+function shopField(canEdit, id, label, val, hint = '', type = 'text') {
+  const disabled = canEdit ? '' : 'disabled';
+  return `
+    <div class="field"><label>${label}</label>
+      <input class="input" id="${id}" type="${type}" value="${esc(val ?? '')}" ${disabled}>
+      ${hintHTML(hint)}</div>`;
+}
+
+function slipProviderHTML(provider) {
+  if (provider) {
+    const name = provider === 'easyslip' ? 'EasySlip' : 'SlipOK';
+    return `<b>✅ เชื่อมต่อ API ตรวจสลิปแล้ว : ${name}</b>
+                 <div>ระบบตรวจกับธนาคาร: ยอดเงิน บัญชีผู้รับ สลิปปลอม และสลิปซ้ำ</div>`;
+  }
+  return `<b>ยังไม่ได้เชื่อมต่อ API ตรวจสลิป</b>
+                 <div>ตอนนี้ระบบอ่าน QR บนสลิปเพื่อกันสลิปซ้ำ แล้วให้พนักงานยืนยันยอดเอง
+                 หากต้องการตรวจกับธนาคารอัตโนมัติ ให้สมัคร EasySlip หรือ SlipOK แล้วใส่ API key ในไฟล์ <code>.env</code>
+                 (ดูตัวอย่างใน <code>.env.example</code>) จากนั้นรีสตาร์ทเซิร์ฟเวอร์</div>`;
+}
+
+function lineCardClass(ln) {
+  if (!ln.configured) return 'warn';
+  return ln.ok ? 'ok' : 'err';
+}
+
+function lineStatusHTML(ln) {
+  if (ln.configured && ln.ok) {
+    return `<b>✅ เชื่อมต่อบอท ${esc(ln.name)} (${esc(ln.basic_id)}) แล้ว</b>
+                 <div>ใบเสร็จของออเดอร์ที่อยู่ในคิวจะมี QR ให้ลูกค้าสแกนรับแจ้งเตือน</div>`;
+  }
+  if (ln.configured) return `<b>เชื่อมต่อ LINE ไม่สำเร็จ</b><div>${esc(ln.error)}</div>`;
+  return `<b>ยังไม่ได้เชื่อมต่อ LINE</b>
+                 <div>สร้าง Messaging API channel ที่ LINE Developers แล้วใส่
+                 <code>LINE_CHANNEL_SECRET</code> และ <code>LINE_CHANNEL_ACCESS_TOKEN</code> ในไฟล์ <code>.env</code> แล้วรีสตาร์ทเซิร์ฟเวอร์</div>`;
+}
+
+const SHOP_KEYS = ['shop_name', 'shop_branch', 'shop_address', 'shop_phone', 'shop_tax_id',
+                   'open_time', 'close_time', 'receipt_footer', 'points_per_baht',
+                   'point_redeem_rate', 'tier_gold_spend', 'tier_platinum_spend',
+                   'promptpay_id', 'promptpay_name', 'require_slip', 'use_queue'];
+
+async function saveShopSettings() {
+  const body = Object.fromEntries(SHOP_KEYS.map((k) => [k, $('#' + k).value]));
+  try {
+    await api.saveSettings(body);
+    toast('บันทึกการตั้งค่าเรียบร้อย', 'ok');
+    $('#brandBranch').textContent = body.shop_branch;
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+const SAVE_BAR = `<div class="row" style="margin-top:16px;justify-content:flex-end">
+      <button class="btn btn-primary btn-lg" id="saveShop">บันทึกการตั้งค่า</button></div>`;
+
 async function drawShop(box) {
   const [s, pay, ln] = await Promise.all([api.settings(), api.paymentConfig(), api.lineStatus()]);
   const canEdit = auth.can('owner', 'manager');
-  const f = (id, label, val, hint = '', type = 'text') => `
-    <div class="field"><label>${label}</label>
-      <input class="input" id="${id}" type="${type}" value="${esc(val ?? '')}" ${canEdit ? '' : 'disabled'}>
-      ${hint ? `<div class="hint">${hint}</div>` : ''}</div>`;
+  const f = (...args) => shopField(canEdit, ...args);
+  const dis = canEdit ? '' : 'disabled';
 
   box.innerHTML = `
     <div class="grid g-2">
@@ -60,7 +113,7 @@ async function drawShop(box) {
           ${f('shop_name', 'ชื่อร้าน', s.shop_name)}
           ${f('shop_branch', 'สาขา', s.shop_branch)}
           <div class="field"><label>ที่อยู่</label>
-            <textarea class="input" id="shop_address" rows="2" ${canEdit ? '' : 'disabled'}>${esc(s.shop_address || '')}</textarea></div>
+            <textarea class="input" id="shop_address" rows="2" ${dis}>${esc(s.shop_address || '')}</textarea></div>
           <div class="grid g-2" style="gap:12px">
             ${f('shop_phone', 'เบอร์โทรศัพท์', s.shop_phone)}
             ${f('shop_tax_id', 'เลขประจำตัวผู้เสียภาษี', s.shop_tax_id)}
@@ -80,18 +133,12 @@ async function drawShop(box) {
             'เบอร์มือถือ 10 หลัก หรือเลขบัตรประชาชน/นิติบุคคล 13 หลัก — ใช้สร้าง QR พร้อมระบุยอด')}
           ${f('promptpay_name', 'ชื่อบัญชีที่แสดงใต้ QR', s.promptpay_name, 'เช่น ร้าน Espresso Flow (นายสมชาย ใจดี)')}
           <div class="field"><label>ตรวจสลิปก่อนปิดบิล</label>
-            <select class="input" id="require_slip" ${canEdit ? '' : 'disabled'}>
+            <select class="input" id="require_slip" ${dis}>
               <option value="1" ${s.require_slip !== '0' ? 'selected' : ''}>บังคับ — พร้อมเพย์/โอนเงินต้องแนบสลิปที่ตรวจผ่าน</option>
               <option value="0" ${s.require_slip === '0' ? 'selected' : ''}>ไม่บังคับ — แนบสลิปหรือไม่ก็ได้</option>
             </select></div>
           <div class="slip-card ${pay.slip_provider ? 'ok' : 'warn'}" style="margin-top:0">
-            <div>${pay.slip_provider
-              ? `<b>✅ เชื่อมต่อ API ตรวจสลิปแล้ว : ${pay.slip_provider === 'easyslip' ? 'EasySlip' : 'SlipOK'}</b>
-                 <div>ระบบตรวจกับธนาคาร: ยอดเงิน บัญชีผู้รับ สลิปปลอม และสลิปซ้ำ</div>`
-              : `<b>ยังไม่ได้เชื่อมต่อ API ตรวจสลิป</b>
-                 <div>ตอนนี้ระบบอ่าน QR บนสลิปเพื่อกันสลิปซ้ำ แล้วให้พนักงานยืนยันยอดเอง
-                 หากต้องการตรวจกับธนาคารอัตโนมัติ ให้สมัคร EasySlip หรือ SlipOK แล้วใส่ API key ในไฟล์ <code>.env</code>
-                 (ดูตัวอย่างใน <code>.env.example</code>) จากนั้นรีสตาร์ทเซิร์ฟเวอร์</div>`}</div>
+            <div>${slipProviderHTML(pay.slip_provider)}</div>
           </div>
         </div>
       </div>
@@ -100,20 +147,13 @@ async function drawShop(box) {
         <div class="card-head"><h3>LINE Bot แจ้งเตือนลูกค้า</h3><div class="sub">ส่งข้อความเมื่อเครื่องดื่มพร้อมเสิร์ฟ</div></div>
         <div class="card-body">
           <div class="field"><label>ส่งออเดอร์จากหน้าขายเข้าคิวบาริสต้า</label>
-            <select class="input" id="use_queue" ${canEdit ? '' : 'disabled'}>
+            <select class="input" id="use_queue" ${dis}>
               <option value="1" ${s.use_queue !== '0' ? 'selected' : ''}>เปิด — ออเดอร์เข้าคิว รอทำ → กำลังทำ → พร้อมเสิร์ฟ → ส่งแล้ว</option>
               <option value="0" ${s.use_queue === '0' ? 'selected' : ''}>ปิด — บันทึกเป็น "สำเร็จ" ทันที (ไม่มีแจ้งเตือน LINE)</option>
             </select>
             <div class="hint">ยอดขายในรายงานนับเมื่อออเดอร์ถูกกด "ส่งให้ลูกค้าแล้ว"</div></div>
-          <div class="slip-card ${ln.configured && ln.ok ? 'ok' : ln.configured ? 'err' : 'warn'}" style="margin-top:0">
-            <div>${ln.configured && ln.ok
-              ? `<b>✅ เชื่อมต่อบอท ${esc(ln.name)} (${esc(ln.basic_id)}) แล้ว</b>
-                 <div>ใบเสร็จของออเดอร์ที่อยู่ในคิวจะมี QR ให้ลูกค้าสแกนรับแจ้งเตือน</div>`
-              : ln.configured
-              ? `<b>เชื่อมต่อ LINE ไม่สำเร็จ</b><div>${esc(ln.error)}</div>`
-              : `<b>ยังไม่ได้เชื่อมต่อ LINE</b>
-                 <div>สร้าง Messaging API channel ที่ LINE Developers แล้วใส่
-                 <code>LINE_CHANNEL_SECRET</code> และ <code>LINE_CHANNEL_ACCESS_TOKEN</code> ในไฟล์ <code>.env</code> แล้วรีสตาร์ทเซิร์ฟเวอร์</div>`}
+          <div class="slip-card ${lineCardClass(ln)}" style="margin-top:0">
+            <div>${lineStatusHTML(ln)}
               <div style="margin-top:6px">Webhook URL : <code>${esc(ln.webhook)}</code>
                 <div class="hint">LINE ต้องเรียกผ่าน HTTPS สาธารณะ — ถ้าเปิดร้านบนเครื่องนี้ ใช้ cloudflared หรือ ngrok แล้วใส่ URL นั้นแทน localhost</div></div>
             </div>
@@ -151,22 +191,10 @@ async function drawShop(box) {
         </div>
       </div>
     </div>
-    ${canEdit ? `<div class="row" style="margin-top:16px;justify-content:flex-end">
-      <button class="btn btn-primary btn-lg" id="saveShop">บันทึกการตั้งค่า</button></div>` : ''}`;
+    ${canEdit ? SAVE_BAR : ''}`;
 
   const btn = $('#saveShop');
-  if (btn) btn.onclick = async () => {
-    const keys = ['shop_name', 'shop_branch', 'shop_address', 'shop_phone', 'shop_tax_id',
-                  'open_time', 'close_time', 'receipt_footer', 'points_per_baht',
-                  'point_redeem_rate', 'tier_gold_spend', 'tier_platinum_spend',
-                  'promptpay_id', 'promptpay_name', 'require_slip', 'use_queue'];
-    const body = Object.fromEntries(keys.map((k) => [k, $('#' + k).value]));
-    try {
-      await api.saveSettings(body);
-      toast('บันทึกการตั้งค่าเรียบร้อย', 'ok');
-      $('#brandBranch').textContent = body.shop_branch;
-    } catch (e) { toast(e.message, 'err'); }
-  };
+  if (btn) btn.onclick = saveShopSettings;
 
   $('#changePw').onclick = () => {
     const m = modal({
@@ -445,7 +473,7 @@ async function drawUsers(box) {
         <tbody>${users.map((u) => `
           <tr><td><b>${esc(u.full_name)}</b></td>
             <td class="mono">${esc(u.username)}</td>
-            <td><span class="badge ${u.role === 'owner' ? 'b-purple' : u.role === 'manager' ? 'b-blue' : 'b-gray'}">
+            <td><span class="badge ${ROLE_BADGE[u.role] || 'b-gray'}">
               ${ROLE[u.role]}</span></td>
             <td class="mono">${esc(u.phone || '-')}</td>
             <td class="t-center">${num(u.total_orders)}</td>
@@ -460,6 +488,17 @@ async function drawUsers(box) {
   const add = $('#addUser');
   if (add) add.onclick = () => userForm(null);
   $$('[data-edit]', box).forEach((b) => b.onclick = () => userForm(users.find((u) => u.id == b.dataset.edit)));
+}
+
+const ROLE_BADGE = { owner: 'b-purple', manager: 'b-blue' };
+
+function statusField(status) {
+  const sel = (v) => (status === v ? 'selected' : '');
+  return `<div class="field"><label>สถานะ</label>
+        <select class="select" id="uStatus">
+          <option value="active" ${sel('active')}>ใช้งาน</option>
+          <option value="inactive" ${sel('inactive')}>ระงับการใช้งาน</option>
+        </select></div>`;
 }
 
 function userForm(u) {
@@ -482,11 +521,7 @@ function userForm(u) {
           </select></div>
         <div class="field"><label>เบอร์โทรศัพท์</label><input class="input" id="uPhone" value="${esc(u?.phone || '')}"></div>
       </div>
-      ${!isNew ? `<div class="field"><label>สถานะ</label>
-        <select class="select" id="uStatus">
-          <option value="active" ${u.status === 'active' ? 'selected' : ''}>ใช้งาน</option>
-          <option value="inactive" ${u.status === 'inactive' ? 'selected' : ''}>ระงับการใช้งาน</option>
-        </select></div>` : ''}`,
+      ${isNew ? '' : statusField(u.status)}`,
     footer: `<button class="btn" data-close>ยกเลิก</button>
              <button class="btn btn-primary" id="saveUser">บันทึก</button>`,
   });
