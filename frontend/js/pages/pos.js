@@ -5,6 +5,7 @@ import {
   $, $$, esc, baht, baht2, num, toast, modal, emptyHTML, productThumb, isImgUrl,
   ORDER_TYPE, PAYMENT, PAYMENT_ICON, fmtDateTime,
 } from '../utils.js';
+import { readSlip } from '../slip.js';
 
 const cart = {
   items: [],          // {uid, product, qty, options:[{id,name,price_delta}], note}
@@ -371,65 +372,230 @@ async function promoDialog() {
 // ---------------------------------------------------------------
 // ชำระเงิน
 // ---------------------------------------------------------------
-function payDialog() {
+async function payDialog() {
   const t = totals();
+  let payCfg;
+  try { payCfg = await api.paymentConfig(); } catch (e) { return toast(e.message, 'err'); }
+
   const m = modal({
     title: 'ชำระเงิน',
+    wide: true,
     body: `
-      <div style="text-align:center;padding:14px;background:var(--green-50);border-radius:12px;margin-bottom:18px">
-        <div style="color:var(--muted);font-size:13px">ยอดที่ต้องชำระ</div>
-        <div style="font-size:34px;font-weight:700;color:var(--green-800)">${baht2(t.total)}</div>
-        ${t.discount ? `<div style="font-size:12px;color:var(--red)">ประหยัดไป ${baht(t.discount)}</div>` : ''}
-      </div>
-
-      <div class="field"><label>ช่องทางชำระเงิน</label>
-        <div class="pay-methods">
-          ${Object.entries(PAYMENT).map(([k, v], i) => `
-            <label><input type="radio" name="pay" value="${k}" ${i === 0 ? 'checked' : ''}>
-              <span class="em">${PAYMENT_ICON[k]}</span>${v}</label>`).join('')}
-        </div>
-      </div>
-
-      <div id="cashBox">
-        <div class="field"><label>รับเงินมา</label>
-          <input class="input" id="received" type="number" inputmode="decimal" value="${t.total}" style="font-size:19px;font-weight:600">
-          <div class="quick-cash">
-            ${[t.total, 100, 500, 1000].filter((v, i, a) => a.indexOf(v) === i)
-              .map((v) => `<button type="button" class="btn btn-sm" data-cash="${v}">${baht(v)}</button>`).join('')}
+      <div class="pay-layout">
+        <div>
+          <div style="text-align:center;padding:14px;background:var(--green-50);border-radius:12px;margin-bottom:18px">
+            <div style="color:var(--muted);font-size:13px">ยอดที่ต้องชำระ</div>
+            <div style="font-size:34px;font-weight:700;color:var(--green-800)" id="dueBig">${baht2(t.total)}</div>
+            ${t.discount ? `<div style="font-size:12px;color:var(--red)">ประหยัดไป ${baht(t.discount)}</div>` : ''}
           </div>
+
+          <div class="field"><label>ช่องทางชำระเงิน</label>
+            <div class="pay-methods">
+              ${Object.entries(PAYMENT).map(([k, v], i) => `
+                <label><input type="radio" name="pay" value="${k}" ${i === 0 ? 'checked' : ''}>
+                  <span class="em">${PAYMENT_ICON[k]}</span>${v}</label>`).join('')}
+            </div>
+          </div>
+
+          <div id="cashBox">
+            <div class="field"><label>รับเงินมา</label>
+              <input class="input" id="received" type="number" inputmode="decimal" value="${t.total}" style="font-size:19px;font-weight:600">
+              <div class="quick-cash">
+                ${[t.total, 100, 500, 1000].filter((v, i, a) => a.indexOf(v) === i)
+                  .map((v) => `<button type="button" class="btn btn-sm" data-cash="${v}">${baht(v)}</button>`).join('')}
+              </div>
+            </div>
+            <div class="sum-line total" style="margin:6px 0 0"><span>เงินทอน</span><span id="change">฿0</span></div>
+          </div>
+
+          ${cart.member ? `
+            <div class="field" style="margin-top:14px">
+              <label>ใช้แต้มสะสม (มี ${num(cart.member.points)} แต้ม · 1 แต้ม = ฿1)</label>
+              <input class="input" id="usePoints" type="number" min="0" max="${Math.min(cart.member.points, t.total)}" value="0">
+            </div>` : ''}
+
+          <div class="field" style="margin-top:10px"><label>หมายเหตุออเดอร์</label>
+            <input class="input" id="orderNote" placeholder="ไม่บังคับ"></div>
         </div>
-        <div class="sum-line total" style="margin:6px 0 0"><span>เงินทอน</span><span id="change">฿0</span></div>
-      </div>
 
-      ${cart.member ? `
-        <div class="field" style="margin-top:14px">
-          <label>ใช้แต้มสะสม (มี ${num(cart.member.points)} แต้ม · 1 แต้ม = ฿1)</label>
-          <input class="input" id="usePoints" type="number" min="0" max="${Math.min(cart.member.points, t.total)}" value="0">
-        </div>` : ''}
-
-      <div class="field" style="margin-top:10px"><label>หมายเหตุออเดอร์</label>
-        <input class="input" id="orderNote" placeholder="ไม่บังคับ"></div>`,
+        <div id="qrPane" class="qr-pane" style="display:none">
+          <div id="qrBox"></div>
+          <div class="slip-head">
+            <b>ตรวจสลิปโอนเงิน</b>
+            <span class="badge ${payCfg.slip_provider ? 'b-green' : 'b-amber'}">
+              ${payCfg.slip_provider ? `ตรวจผ่าน ${payCfg.slip_provider === 'easyslip' ? 'EasySlip' : 'SlipOK'}` : 'อ่าน QR + ยืนยันโดยพนักงาน'}</span>
+          </div>
+          <label class="slip-drop" id="slipDrop">
+            <input type="file" id="slipFile" accept="image/*" hidden>
+            <span class="em">🧾</span>
+            <b>แนบรูปสลิป</b>
+            <small>คลิกเพื่อเลือก · ลากไฟล์มาวาง · หรือกด Ctrl+V</small>
+          </label>
+          <div id="slipResult"></div>
+        </div>
+      </div>`,
     footer: `<button class="btn" data-close>ยกเลิก</button>
              <button class="btn btn-primary btn-lg" id="confirmPay">ยืนยันการชำระเงิน</button>`,
+    onClose: () => document.removeEventListener('paste', onPaste),
   });
 
   const recv = $('#received', m.el);
+  const method = () => $('input[name="pay"]:checked', m.el).value;
+  const isTransfer = () => ['promptpay', 'transfer'].includes(method());
+  const due = () => Math.max(0, t.total - Number($('#usePoints', m.el)?.value || 0));
+
+  let slip = null;          // สลิปที่ตรวจผ่านแล้ว { id, ... }
+  let slipDue = null;       // ยอดตอนตรวจสลิป — ถ้ายอดเปลี่ยนต้องตรวจใหม่
+  let qrTimer, qrFor = null;
+
+  const refreshConfirm = () => {
+    const needSlip = isTransfer() && payCfg.require_slip;
+    $('#confirmPay', m.el).disabled = needSlip && !slip;
+    $('#confirmPay', m.el).textContent = needSlip && !slip ? 'รอตรวจสลิป' : 'ยืนยันการชำระเงิน';
+  };
+
   const calcChange = () => {
-    const pts = Number($('#usePoints', m.el)?.value || 0);
-    const due = Math.max(0, t.total - pts);
-    const c = Number(recv.value || 0) - due;
+    const c = Number(recv.value || 0) - due();
     $('#change', m.el).textContent = baht2(Math.max(0, c));
     $('#change', m.el).style.color = c < 0 ? 'var(--red)' : 'var(--ink)';
+    $('#dueBig', m.el).textContent = baht2(due());
+    if (slip && slipDue !== due()) { slip = null; renderSlip({ state: 'error', msg: 'ยอดชำระเปลี่ยน กรุณาตรวจสลิปใหม่' }); }
+    if (method() === 'promptpay') { clearTimeout(qrTimer); qrTimer = setTimeout(loadQr, 300); }
+    refreshConfirm();
   };
+
+  // ---- QR พร้อมเพย์ ----
+  async function loadQr() {
+    const box = $('#qrBox', m.el);
+    if (!box || method() !== 'promptpay') return;
+    const amount = due();
+    if (qrFor === amount) return;
+    qrFor = amount;
+    if (!payCfg.promptpay_ready) {
+      box.innerHTML = `<div class="slip-card warn">⚠️ ยังไม่ได้ตั้งเลขพร้อมเพย์ของร้าน<br>
+        <small>ไปที่ ตั้งค่า → ข้อมูลร้าน → รับชำระเงิน</small></div>`;
+      return;
+    }
+    box.innerHTML = '<div class="loading"><div class="spinner"></div>กำลังสร้าง QR...</div>';
+    try {
+      const q = await api.promptpayQr(amount);
+      if (qrFor !== amount) return;
+      box.innerHTML = `
+        <div class="pp-card">
+          <div class="pp-brand">Thai QR Payment · <b>PromptPay</b></div>
+          <img src="${q.qr}" alt="QR พร้อมเพย์" class="pp-qr" id="ppQr" title="คลิกเพื่อขยายให้ลูกค้าสแกน">
+          <div class="pp-amt">${baht2(q.amount)}</div>
+          <div class="pp-name">${esc(q.name)} · ${esc(q.target)}</div>
+          <button type="button" class="btn btn-sm" id="ppFull">🔍 ขยายให้ลูกค้าสแกน</button>
+        </div>`;
+      const full = () => showQrFullscreen(q);
+      $('#ppQr', m.el).onclick = full;
+      $('#ppFull', m.el).onclick = full;
+    } catch (e) {
+      qrFor = null;
+      box.innerHTML = `<div class="slip-card err">${esc(e.message)}</div>`;
+    }
+  }
+
+  // ---- สลิป ----
+  function renderSlip(s) {
+    const box = $('#slipResult', m.el);
+    if (!box) return;
+    const preview = s.preview ? `<img src="${s.preview}" class="slip-thumb" alt="สลิป">` : '';
+    if (s.state === 'checking') {
+      box.innerHTML = `<div class="slip-card">${preview}<div><div class="spinner" style="margin:0 0 6px"></div>กำลังตรวจสลิป...</div></div>`;
+    } else if (s.state === 'ok') {
+      const d = s.slip;
+      box.innerHTML = `<div class="slip-card ok">${preview}<div>
+        <b>✅ ${d.status === 'manual' ? 'พนักงานยืนยันสลิปแล้ว' : 'สลิปถูกต้อง'}</b>
+        ${d.amount != null ? `<div>ยอดโอน <b>${baht2(d.amount)}</b></div>` : ''}
+        ${d.sender_name ? `<div>จาก ${esc(d.sender_name)}</div>` : ''}
+        ${d.sending_bank ? `<div>${esc(d.sending_bank)}</div>` : ''}
+        <div class="mono ref">Ref: ${esc(d.trans_ref)}</div></div></div>`;
+    } else if (s.state === 'confirm') {
+      box.innerHTML = `<div class="slip-card warn">${preview}<div>
+        <b>อ่าน QR สลิปได้ · รอพนักงานยืนยัน</b>
+        <div>${esc(s.slip.sending_bank || '')}</div>
+        <div class="mono ref">Ref: ${esc(s.slip.trans_ref)}</div>
+        <label class="chk"><input type="checkbox" id="slipChk">
+          ตรวจแล้ว : ยอดโอน <b>${baht2(s.slip.expected_amount)}</b> และชื่อผู้รับเป็นของร้าน</label>
+        <button type="button" class="btn btn-sm btn-primary" id="slipOk" disabled>ยืนยันสลิป</button>
+      </div></div>`;
+      $('#slipChk', m.el).onchange = (e) => { $('#slipOk', m.el).disabled = !e.target.checked; };
+      $('#slipOk', m.el).onclick = () => verify(s.input, true, s.preview);
+    } else if (s.state === 'error') {
+      box.innerHTML = `<div class="slip-card err">${preview}<div><b>❌ ตรวจสลิปไม่ผ่าน</b><div>${esc(s.msg)}</div></div></div>`;
+    } else box.innerHTML = '';
+    box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  async function verify(input, manual, preview) {
+    renderSlip({ state: 'checking', preview });
+    const amount = due();
+    try {
+      const r = await api.verifySlip({
+        amount,
+        qr_payload: input.qr,
+        // ส่งรูปเฉพาะเมื่อมี API และอ่าน QR เองไม่ได้ (ประหยัดแบนด์วิดท์)
+        image: payCfg.slip_provider && !input.qr ? input.image : undefined,
+        manual_confirm: manual || undefined,
+      });
+      if (r.status === 'needs_confirm') {
+        slip = null;
+        renderSlip({ state: 'confirm', slip: r.slip, input, preview });
+      } else {
+        slip = r.slip; slipDue = amount;
+        renderSlip({ state: 'ok', slip: r.slip, preview });
+        toast('ตรวจสลิปเรียบร้อย', 'ok');
+      }
+    } catch (e) {
+      slip = null;
+      renderSlip({ state: 'error', msg: e.message, preview });
+    }
+    refreshConfirm();
+  }
+
+  async function onSlipFile(file) {
+    if (!file) return;
+    slip = null; refreshConfirm();
+    renderSlip({ state: 'checking' });
+    try {
+      const input = await readSlip(file);
+      if (!input.qr && !payCfg.slip_provider) {
+        return renderSlip({ state: 'error', preview: input.image,
+          msg: 'หา QR บนสลิปไม่เจอ — ใช้ภาพแคปหน้าจอจากแอปธนาคาร หรือถ่ายให้เห็น QR มุมสลิปชัดๆ' });
+      }
+      await verify(input, false, input.image);
+    } catch (e) {
+      renderSlip({ state: 'error', msg: e.message });
+    }
+  }
+
+  function onPaste(e) {
+    if (!isTransfer()) return;
+    const f = [...(e.clipboardData?.files || [])].find((x) => x.type.startsWith('image/'));
+    if (f) { e.preventDefault(); onSlipFile(f); }
+  }
+  document.addEventListener('paste', onPaste);
+
+  const drop = $('#slipDrop', m.el);
+  $('#slipFile', m.el).onchange = (e) => { onSlipFile(e.target.files[0]); e.target.value = ''; };
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); onSlipFile(e.dataTransfer.files[0]); });
+
   recv.addEventListener('input', calcChange);
   $('#usePoints', m.el)?.addEventListener('input', calcChange);
   $$('[data-cash]', m.el).forEach((b) => b.onclick = () => { recv.value = b.dataset.cash; calcChange(); });
   m.el.addEventListener('change', (e) => {
-    if (e.target.name === 'pay') {
-      const isCash = e.target.value === 'cash';
-      $('#cashBox', m.el).style.display = isCash ? 'block' : 'none';
-      if (!isCash) recv.value = t.total;
-    }
+    if (e.target.name !== 'pay') return;
+    const k = e.target.value;
+    $('#cashBox', m.el).style.display = k === 'cash' ? 'block' : 'none';
+    $('#qrPane', m.el).style.display = isTransfer() ? 'block' : 'none';
+    $('#qrBox', m.el).style.display = k === 'promptpay' ? 'block' : 'none';
+    if (k !== 'cash') recv.value = due();
+    if (k === 'promptpay') { qrFor = null; loadQr(); }
+    refreshConfirm();
   });
 
   $('#confirmPay', m.el).addEventListener('click', async () => {
@@ -442,8 +608,9 @@ function payDialog() {
         member_id: cart.member?.id || null,
         promotion_code: cart.promo?.code || null,
         points_used: Number($('#usePoints', m.el)?.value || 0),
-        payment_method: $('input[name="pay"]:checked', m.el).value,
+        payment_method: method(),
         received: Number(recv.value || 0),
+        slip_id: isTransfer() ? slip?.id : undefined,
         note: $('#orderNote', m.el).value.trim() || null,
         items: cart.items.map((i) => ({
           product_id: i.product.id, qty: i.qty,
@@ -459,10 +626,26 @@ function payDialog() {
       showReceipt(order.id);
     } catch (e) {
       toast(e.message, 'err');
-      btn.disabled = false; btn.textContent = 'ยืนยันการชำระเงิน';
+      btn.disabled = false; refreshConfirm();
     }
   });
   calcChange();
+}
+
+/** QR เต็มจอสำหรับหันจอให้ลูกค้าสแกน */
+function showQrFullscreen(q) {
+  const el = document.createElement('div');
+  el.className = 'qr-full';
+  el.innerHTML = `
+    <div class="pp-card big">
+      <div class="pp-brand">Thai QR Payment · <b>PromptPay</b></div>
+      <img src="${q.qr}" alt="QR พร้อมเพย์" class="pp-qr">
+      <div class="pp-amt">${baht2(q.amount)}</div>
+      <div class="pp-name">${esc(q.name)} · ${esc(q.target)}</div>
+      <div class="pp-hint">สแกนด้วยแอปธนาคารใดก็ได้ · แตะเพื่อปิด</div>
+    </div>`;
+  el.onclick = () => el.remove();
+  document.body.appendChild(el);
 }
 
 // ---------------------------------------------------------------
@@ -490,15 +673,30 @@ export async function showReceipt(orderId) {
       ${o.discount ? `<div class="li"><span>ส่วนลด</span><span>-${baht2(o.discount)}</span></div>` : ''}
       <div class="li" style="font-weight:700;font-size:15px"><span>ยอดสุทธิ</span><span>${baht2(o.total)}</span></div>
       <div class="li"><span>ชำระโดย</span><span>${PAYMENT[o.payment_method] || '-'}</span></div>
+      ${o.slip ? `<div class="li"><span>อ้างอิงสลิป</span><span>${esc(o.slip.trans_ref)}</span></div>` : ''}
       ${o.payment_method === 'cash' ? `
         <div class="li"><span>รับเงิน</span><span>${baht2(o.received)}</span></div>
         <div class="li"><span>เงินทอน</span><span>${baht2(o.change_amount)}</span></div>` : ''}
       ${o.points_earned ? `<div class="li"><span>แต้มที่ได้รับ</span><span>+${o.points_earned} แต้ม</span></div>` : ''}
       <hr>
+      <div id="lineBox"></div>
       <div class="c">${esc(o.shop.footer || 'ขอบคุณที่ใช้บริการ')}</div>
     </div>`,
     footer: `<button class="btn" data-close>ปิด</button>
              <button class="btn btn-primary" id="printBtn">🖨️ พิมพ์ใบเสร็จ</button>`,
   });
   $('#printBtn', m.el).addEventListener('click', () => window.print());
+
+  // QR รับแจ้งเตือนทาง LINE เมื่อเครื่องดื่มพร้อม (เฉพาะออเดอร์ที่ยังอยู่ในคิว)
+  try {
+    const l = await api.orderLineLink(o.id);
+    if (!l.enabled) return;
+    $('#lineBox', m.el).innerHTML = `
+      <div class="line-rcpt">
+        <img src="${l.qr}" alt="QR LINE">
+        <div><b>รับแจ้งเตือนทาง LINE</b><br>สแกน QR แล้วกดส่งข้อความ
+          บอท <b>${esc(l.bot_name)}</b> จะแจ้งทันทีเมื่อเครื่องดื่มพร้อม
+          ${l.linked ? '<br><span style="color:#06c755">✓ ผูก LINE กับออเดอร์นี้แล้ว</span>' : ''}</div>
+      </div><hr>`;
+  } catch { /* ไม่มี LINE ก็แสดงใบเสร็จตามปกติ */ }
 }

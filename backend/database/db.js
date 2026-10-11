@@ -109,7 +109,7 @@ async function initSchema() {
 async function dropSchema() {
   await pool.query(`
     DROP VIEW  IF EXISTS v_product_sales, v_daily_sales CASCADE;
-    DROP TABLE IF EXISTS order_items, orders, point_transactions, members,
+    DROP TABLE IF EXISTS payment_slips, order_items, orders, point_transactions, members,
                          stock_movements, recipes, ingredients,
                          product_option_groups, options, option_groups,
                          products, categories, promotions, shifts,

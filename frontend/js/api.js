@@ -67,6 +67,16 @@ export const api = {
   cancelOrder: (id, reason) => request('POST', `/orders/${id}/cancel`, { reason }),
   queue: () => request('GET', '/orders/queue'),
 
+  // --- รับชำระเงิน ---
+  paymentConfig: () => request('GET', '/payments/config'),
+  promptpayQr: (amount) => request('GET', '/payments/promptpay-qr' + qs({ amount })),
+  verifySlip: (b) => request('POST', '/payments/verify-slip', b),
+  slips: (q) => request('GET', '/payments/slips' + qs(q)),
+
+  // --- LINE Bot ---
+  lineStatus: () => request('GET', '/line/status'),
+  orderLineLink: (id) => request('GET', `/line/order-link/${id}`),
+
   // --- คลัง ---
   ingredients: (q) => request('GET', '/stock/ingredients' + qs(q)),
   stockSummary: () => request('GET', '/stock/summary'),

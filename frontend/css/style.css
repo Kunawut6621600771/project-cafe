@@ -483,3 +483,37 @@ table.tbl tbody tr:last-child td { border-bottom: none; }
   .modal-bg { position: static; background: none; padding: 0; }
   .modal { box-shadow: none; max-height: none; }
 }
+
+/* ---------- ชำระเงิน : QR พร้อมเพย์ + ตรวจสลิป ---------- */
+.pay-layout { display: grid; grid-template-columns: 1fr; gap: 20px; }
+.pay-layout:has(.qr-pane[style*="block"]) { grid-template-columns: 1fr 1fr; }
+@media (max-width: 760px) { .pay-layout:has(.qr-pane[style*="block"]) { grid-template-columns: 1fr; } }
+.qr-pane { border-left: 1px solid var(--line-2); padding-left: 20px; }
+@media (max-width: 760px) { .qr-pane { border-left: 0; padding-left: 0; } }
+.pp-card { text-align: center; border: 1px solid var(--line-2); border-radius: 14px; padding: 12px 14px 14px; margin-bottom: 14px; background: #fff; }
+.pp-brand { background: #0e3a6b; color: #fff; font-size: 12.5px; border-radius: 8px; padding: 6px; margin-bottom: 10px; }
+.pp-qr { width: 100%; max-width: 230px; aspect-ratio: 1; cursor: zoom-in; display: block; margin: 0 auto; }
+.pp-amt { font-size: 24px; font-weight: 700; color: #0e3a6b; margin-top: 6px; }
+.pp-name { font-size: 12.5px; color: var(--muted); margin: 2px 0 10px; }
+.qr-full { position: fixed; inset: 0; z-index: 2000; background: rgba(8, 20, 38, .82); display: grid; place-items: center; padding: 16px; cursor: zoom-out; }
+.pp-card.big { width: min(440px, 100%); margin: 0; }
+.pp-card.big .pp-qr { max-width: 360px; cursor: zoom-out; }
+.pp-card.big .pp-amt { font-size: 34px; }
+.pp-hint { font-size: 12px; color: var(--muted); }
+.slip-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.slip-drop { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 16px; border: 2px dashed var(--line); border-radius: 12px; cursor: pointer; text-align: center; transition: .15s; }
+.slip-drop:hover, .slip-drop.over { border-color: var(--green-600); background: var(--green-50); }
+.slip-drop .em { font-size: 26px; }
+.slip-drop small { color: var(--muted); font-size: 12px; }
+.slip-card { display: flex; gap: 12px; align-items: flex-start; margin-top: 10px; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line-2); font-size: 13px; line-height: 1.55; }
+.slip-card.ok { background: var(--green-50); border-color: var(--green-600); }
+.slip-card.warn { background: var(--amber-bg); border-color: #f59e0b; }
+.slip-card.err { background: #fef2f2; border-color: var(--red); color: #991b1b; }
+.slip-card .ref { font-size: 11.5px; color: var(--muted); word-break: break-all; }
+.slip-card .chk { display: flex; gap: 6px; align-items: flex-start; margin: 8px 0; font-weight: 500; cursor: pointer; }
+.slip-thumb { width: 64px; height: 96px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line-2); flex-shrink: 0; }
+
+/* ---------- LINE Bot ---------- */
+.b-line { background: #06c755; color: #fff; margin-left: 6px; }
+.line-rcpt { display: flex; gap: 10px; align-items: center; font-size: 11.5px; line-height: 1.45; }
+.line-rcpt img { width: 92px; height: 92px; flex-shrink: 0; }

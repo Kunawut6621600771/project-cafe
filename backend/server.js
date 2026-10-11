@@ -12,7 +12,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({
+  limit: '8mb',                          // รูปสลิปส่งมาเป็น base64
+  // เก็บ body ดิบไว้ตรวจลายเซ็น webhook ของ LINE
+  verify: (req, res, buf) => { if (req.originalUrl.startsWith('/api/line/webhook')) req.rawBody = buf; },
+}));
 
 // log แบบสั้น
 app.use((req, res, next) => {
@@ -32,6 +36,8 @@ app.use('/api/orders', require('./routes/orders'));
 app.use('/api/stock', require('./routes/stock'));
 app.use('/api/members', require('./routes/members'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/payments', require('./routes/payments'));  // QR พร้อมเพย์ + ตรวจสลิป
+app.use('/api/line', require('./routes/line'));          // LINE Bot แจ้งเตือนเครื่องดื่มพร้อม
 app.use('/api', require('./routes/settings'));      // /settings /users /promotions /expenses /shifts
 
 app.get('/api/health', async (req, res, next) => {
@@ -53,11 +59,15 @@ app.get('/api/health', async (req, res, next) => {
 // ---------------- Frontend ----------------
 const FRONTEND = path.join(__dirname, '..', 'frontend');
 app.use(express.static(FRONTEND));
+// ไลบรารีอ่าน QR บนรูปสลิป (ใช้ฝั่งเบราว์เซอร์)
+app.get('/vendor/jsQR.js', (req, res) => res.sendFile(require.resolve('jsqr/dist/jsQR.js')));
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(FRONTEND, 'index.html')));
 
 // ---------------- Error handler ----------------
 app.use((req, res) => res.status(404).json({ error: 'ไม่พบ endpoint นี้' }));
 app.use((err, req, res, next) => {
+  if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'ไฟล์ใหญ่เกินไป' });
   console.error('[ERROR]', err.message);
   if (err.code === '23505') {               // unique_violation ของ PostgreSQL
     return res.status(400).json({ error: 'ข้อมูลซ้ำกับที่มีอยู่ในระบบ' });

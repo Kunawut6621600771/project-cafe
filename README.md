@@ -36,6 +36,7 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/espresso_flow
 
 ```bash
 npm install
+npm run seed    # ใส่เมนู 80 รายการพร้อมรูป + บัญชีทดลอง (รันครั้งแรกครั้งเดียว)
 npm start
 ```
 
@@ -59,6 +60,8 @@ npm start
 | `npm start` | รันเซิร์ฟเวอร์ |
 | `npm run dev` | รันแบบ auto-reload เมื่อแก้โค้ด |
 | `npm run reset` | ลบตารางทั้งหมดทิ้งแล้วสร้างตารางเปล่าใหม่ (ไม่มีข้อมูลตัวอย่าง) |
+| `npm run seed` | ใส่เมนู 80 รายการ 8 หมวด พร้อมรูปจริงและตัวเลือก (ขนาด/ความหวาน/นม/ช็อต/ท็อปปิ้ง) + บัญชีทดลอง — รันซ้ำได้ ไม่ทับราคาที่แก้ไว้ |
+| `npm run menu:images` | ดาวน์โหลดรูปเมนูใหม่จาก Unsplash / TheMealDB / Openverse (รูปอยู่ใน repo แล้ว ไม่ต้องรันก็ได้) เครดิตรูปอยู่ที่ `frontend/assets/menu/CREDITS.md` |
 
 ---
 
@@ -182,6 +185,42 @@ project cafe/
 ### รายงาน
 `GET /api/reports/dashboard` · `/sales` · `/products` · `/staff` · `/profit-loss`
 (ทุกตัวรับ `date_from` และ `date_to`)
+
+### รับชำระเงิน (พร้อมเพย์ + ตรวจสลิป)
+| Method | Endpoint | คำอธิบาย |
+|--------|----------|----------|
+| GET | `/api/payments/config` | สถานะเลขพร้อมเพย์ / API ตรวจสลิป |
+| GET | `/api/payments/promptpay-qr?amount=120` | QR พร้อมเพย์ระบุยอด (มาตรฐาน EMVCo) |
+| POST | `/api/payments/verify-slip` | ตรวจสลิป `{ amount, qr_payload?, image?, manual_confirm? }` → คืน `slip.id` |
+| GET | `/api/payments/slips` | ประวัติการตรวจสลิป |
+
+ตอนสร้างออเดอร์ด้วย `payment_method: promptpay/transfer` ให้ส่ง `slip_id` มาด้วย
+ระบบจะผูกสลิปกับบิล — สลิปใบเดียวใช้ได้บิลเดียว (กันสลิปซ้ำด้วยเลขอ้างอิงรายการ)
+
+**วิธีตรวจสลิป**
+- **ไม่ได้ตั้ง API** : หน้าร้านอ่าน QR มุมสลิปเพื่อเอาเลขอ้างอิง (กันสลิปซ้ำ) แล้วให้พนักงานติ๊กยืนยันยอดเอง
+- **ตั้ง API** (แนะนำ) : ใส่ `SLIP_PROVIDER` + API key ของ [EasySlip](https://developer.easyslip.com) หรือ [SlipOK](https://slipok.com) ใน `.env`
+  ระบบจะตรวจกับธนาคาร — สลิปปลอม, ยอดเงินไม่ตรง, บัญชีผู้รับไม่ใช่ของร้าน, สลิปเก่าเกิน 24 ชม. จะไม่ผ่าน
+
+ตั้งเลขพร้อมเพย์ของร้านที่ **ตั้งค่า → ข้อมูลร้าน → รับชำระเงิน (พร้อมเพย์)**
+
+### LINE Bot แจ้งลูกค้าเมื่อเครื่องดื่มพร้อม
+| Method | Endpoint | คำอธิบาย |
+|--------|----------|----------|
+| POST | `/api/line/webhook` | รับ event จาก LINE (ตรวจลายเซ็น `x-line-signature`) |
+| GET | `/api/line/status` | สถานะการเชื่อมต่อบอท + Webhook URL |
+| GET | `/api/line/order-link/:id` | QR บนใบเสร็จ สำหรับลูกค้าสแกนรับแจ้งเตือน |
+
+**ขั้นตอนการทำงาน** : ใบเสร็จมี QR → ลูกค้าสแกน → LINE เปิดแชทกับบอทพร้อมข้อความรหัสออเดอร์ → กดส่ง →
+บอทผูกลูกค้ากับออเดอร์ → พนักงานกด **"ทำเสร็จแล้ว"** (ย้ายเป็นพร้อมเสิร์ฟ) ในหน้าคิว → บอทส่งข้อความแจ้งทันที
+
+**ติดตั้ง**
+1. สร้าง LINE Official Account และเปิด Messaging API ที่ [LINE Developers Console](https://developers.line.biz/console/)
+2. ใส่ `LINE_CHANNEL_SECRET` และ `LINE_CHANNEL_ACCESS_TOKEN` ใน `.env` แล้วรีสตาร์ทเซิร์ฟเวอร์
+3. LINE ต้องเรียก webhook ผ่าน HTTPS สาธารณะ ถ้าเปิดระบบบนเครื่องร้าน ใช้ tunnel เช่น
+   `cloudflared tunnel --url http://localhost:3000` แล้วตั้ง Webhook URL เป็น `https://<โดเมนที่ได้>/api/line/webhook`
+   และเปิด **Use webhook** (แนะนำปิด Auto-reply ของ LINE OA)
+4. ต้องเปิด **ตั้งค่า → ส่งออเดอร์จากหน้าขายเข้าคิวบาริสต้า** (เปิดเป็นค่าเริ่มต้น) — ยอดขายในรายงานจะนับเมื่อกด "ส่งให้ลูกค้าแล้ว"
 
 ### ตั้งค่า
 `GET|PUT /api/settings` · `GET|POST|PUT|DELETE /api/users` · `/promotions` · `/expenses` ·

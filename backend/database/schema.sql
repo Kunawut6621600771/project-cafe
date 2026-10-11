@@ -213,6 +213,10 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_status  ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_member  ON orders(member_id);
+-- LINE Bot : ผูกลูกค้ากับออเดอร์เพื่อแจ้งเตือนเมื่อพร้อม
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_token       TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_user_id     TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_notified_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS order_items (
   id            SERIAL PRIMARY KEY,
@@ -229,6 +233,30 @@ CREATE TABLE IF NOT EXISTS order_items (
   note          TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+
+-- ----------------------------------------------------------
+-- 9.1) สลิปโอนเงิน (พร้อมเพย์ / โอน) : trans_ref ห้ามซ้ำ → กันสลิปใช้ซ้ำ
+--      order_id ว่าง = ตรวจแล้วแต่ยังไม่ได้ผูกกับบิล
+-- ----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS payment_slips (
+  id               SERIAL PRIMARY KEY,
+  trans_ref        TEXT NOT NULL UNIQUE,
+  provider         TEXT NOT NULL,                 -- easyslip / slipok / manual
+  status           TEXT NOT NULL DEFAULT 'verified' CHECK (status IN ('verified','manual')),
+  amount           DOUBLE PRECISION,
+  expected_amount  DOUBLE PRECISION NOT NULL DEFAULT 0,
+  sending_bank     TEXT,
+  sender_name      TEXT,
+  receiver_name    TEXT,
+  receiver_account TEXT,
+  slip_time        TEXT,
+  qr_payload       TEXT,
+  raw_json         TEXT,
+  order_id         INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+  user_id          INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at       TIMESTAMP NOT NULL DEFAULT LOCALTIMESTAMP(0)
+);
+CREATE INDEX IF NOT EXISTS idx_payment_slips_order ON payment_slips(order_id);
 
 -- ----------------------------------------------------------
 -- 10) ค่าใช้จ่าย

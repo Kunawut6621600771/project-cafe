@@ -70,6 +70,7 @@ async function drawQueue(box) {
                 <div style="padding:12px">
                   <div class="row">
                     <b class="mono" style="font-size:13px">${esc(o.order_no)}</b>
+                    ${o.line_user_id ? '<span class="badge b-line" title="ลูกค้าจะได้รับแจ้งเตือนทาง LINE เมื่อพร้อมเสิร์ฟ">LINE</span>' : ''}
                     <div class="spacer"></div>
                     <span style="font-size:11.5px;color:var(--muted)">${ago(o.created_at)}</span>
                   </div>
@@ -95,8 +96,8 @@ async function drawQueue(box) {
   $$('[data-next]', box).forEach((b) => b.onclick = async () => {
     b.disabled = true;
     try {
-      await api.orderStatus(b.dataset.next, NEXT[b.dataset.status]);
-      toast('อัปเดตสถานะเรียบร้อย', 'ok');
+      const r = await api.orderStatus(b.dataset.next, NEXT[b.dataset.status]);
+      toast(r.line_notified ? 'อัปเดตสถานะแล้ว · ส่งแจ้งเตือนลูกค้าทาง LINE แล้ว' : 'อัปเดตสถานะเรียบร้อย', 'ok');
       refreshQueueBadge();
       draw();
     } catch (e) { toast(e.message, 'err'); b.disabled = false; }

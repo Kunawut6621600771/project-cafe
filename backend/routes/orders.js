@@ -5,6 +5,7 @@ const router = require('express').Router();
 const { db, tx } = require('../database/db');
 const { auth, requireRole } = require('../middleware/auth');
 const { wrap, getSetting, nextOrderNo, calcTier, round2 } = require('../utils/helpers');
+const { notifyReady } = require('./line');
 
 // ---------------------------------------------------------------
 // GET /api/orders  : ประวัติออเดอร์ (มีตัวกรอง + แบ่งหน้า)
@@ -69,6 +70,8 @@ router.get('/:id', auth, wrap(async (req, res) => {
     WHERE o.id = ?`, req.params.id);
   if (!o) return res.status(404).json({ error: 'ไม่พบออเดอร์' });
   o.items = await db.all('SELECT * FROM order_items WHERE order_id=?', o.id);
+  o.slip = await db.get(`SELECT trans_ref, provider, status, amount, sending_bank, sender_name, slip_time
+                         FROM payment_slips WHERE order_id=?`, o.id) || null;
   o.shop = {
     name: await getSetting('shop_name', 'Espresso Flow'),
     branch: await getSetting('shop_branch', ''),
@@ -146,8 +149,23 @@ router.post('/', auth, wrap(async (req, res) => {
   if (payment === 'cash' && received < total) {
     return res.status(400).json({ error: 'จำนวนเงินที่รับมาน้อยกว่ายอดที่ต้องชำระ' });
   }
+  // ---- สลิปโอนเงิน (พร้อมเพย์ / โอน) ----
+  let slip = null;
+  if (b.slip_id) {
+    slip = await db.get('SELECT * FROM payment_slips WHERE id=?', b.slip_id);
+    if (!slip) return res.status(400).json({ error: 'ไม่พบข้อมูลสลิป กรุณาตรวจสลิปใหม่' });
+    if (slip.order_id) return res.status(409).json({ error: 'สลิปนี้ถูกใช้ชำระบิลอื่นไปแล้ว' });
+    if (Math.abs(round2(slip.expected_amount) - total) > 0.009) {
+      return res.status(400).json({ error: 'ยอดบิลเปลี่ยนหลังตรวจสลิป กรุณาตรวจสลิปใหม่อีกครั้ง' });
+    }
+  } else if (['promptpay', 'transfer'].includes(payment) && (await getSetting('require_slip', '1')) === '1') {
+    return res.status(400).json({ error: 'กรุณาตรวจสลิปโอนเงินก่อนยืนยันการชำระ' });
+  }
+
   const pointsEarned = member ? Math.floor(total * Number(await getSetting('points_per_baht', 0.05))) : 0;
-  const status = b.status || 'completed';
+  // เปิดใช้คิวบาริสต้า → ออเดอร์เข้าคิว 'รอทำ' (จ่ายเงินแล้ว) แล้วค่อยปิดเป็น 'สำเร็จ' เมื่อส่งให้ลูกค้า
+  const useQueue = (await getSetting('use_queue', '1')) === '1';
+  const status = ['pending', 'completed'].includes(b.status) ? b.status : (useQueue ? 'pending' : 'completed');
   const tier = member ? await calcTier(round2(member.total_spent + total)) : null;
 
   // ---- บันทึกทั้งหมดใน transaction เดียว ----
@@ -158,11 +176,11 @@ router.post('/', auth, wrap(async (req, res) => {
     const oid = await t.insert(`INSERT INTO orders
       (order_no,order_type,table_no,member_id,user_id,shift_id,subtotal,discount,promotion_id,total,
        cost_total,payment_method,received,change_amount,points_earned,status,note,paid_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,LOCALTIMESTAMP(0))`,
       orderNo, b.order_type || 'takeaway', b.table_no || null, member ? member.id : null,
       req.user.id, shift ? shift.id : null, subtotal, discount, promotionId, total,
       round2(costTotal), payment, received, round2(received - total), pointsEarned, status,
-      b.note || null, status === 'completed' ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null);
+      b.note || null);
 
     for (const l of lines) {
       await t.run(`INSERT INTO order_items
@@ -170,6 +188,13 @@ router.post('/', auth, wrap(async (req, res) => {
         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
         oid, l.product.id, l.product.name, l.qty, l.product.price,
         l.optPrice, l.optionsText, l.optionsJson, l.product.cost, l.lineTotal, l.note);
+    }
+
+    // ผูกสลิปกับบิล (WHERE order_id IS NULL กันสองบิลใช้สลิปเดียวกันพร้อมกัน)
+    if (slip) {
+      const { rowCount } = await t.run(
+        'UPDATE payment_slips SET order_id=? WHERE id=? AND order_id IS NULL', oid, slip.id);
+      if (!rowCount) throw Object.assign(new Error('สลิปนี้ถูกใช้ชำระบิลอื่นไปแล้ว'), { status: 409 });
     }
 
     // ---- ตัดสต็อกตามสูตร ----
@@ -234,11 +259,19 @@ router.patch('/:id/status', auth, wrap(async (req, res) => {
   if (o.status === 'cancelled') return res.status(400).json({ error: 'ออเดอร์นี้ถูกยกเลิกไปแล้ว' });
   if (status === 'cancelled') return res.status(400).json({ error: 'กรุณาใช้เมนูยกเลิกออเดอร์' });
 
-  await db.run(`UPDATE orders SET status=?, updated_at=LOCALTIMESTAMP(0),
-                paid_at = CASE WHEN ?='completed' AND paid_at IS NULL
-                          THEN LOCALTIMESTAMP(0) ELSE paid_at END WHERE id=?`,
-    status, status, o.id);
-  res.json(await db.get('SELECT * FROM orders WHERE id=?', o.id));
+  await tx(async (t) => {
+    await t.run(`UPDATE orders SET status=?, updated_at=LOCALTIMESTAMP(0),
+                  paid_at = CASE WHEN ?='completed' AND paid_at IS NULL
+                            THEN LOCALTIMESTAMP(0) ELSE paid_at END WHERE id=?`,
+      status, status, o.id);
+    // ออเดอร์จากคิวเพิ่งปิดการขาย → นับเข้ายอดกะ (ออเดอร์ที่สร้างเป็น completed นับไปตอนสร้างแล้ว)
+    if (status === 'completed' && o.status !== 'completed' && o.shift_id) {
+      await t.run('UPDATE shifts SET total_sales=total_sales+?, total_orders=total_orders+1 WHERE id=?',
+        o.total, o.shift_id);
+    }
+  });
+  const line = status === 'ready' ? await notifyReady(o.id) : false;
+  res.json({ ...(await db.get('SELECT * FROM orders WHERE id=?', o.id)), line_notified: line });
 }));
 
 // ---------------------------------------------------------------

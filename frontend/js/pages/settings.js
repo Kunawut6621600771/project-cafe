@@ -44,7 +44,7 @@ async function draw() {
 // ข้อมูลร้าน
 // ---------------------------------------------------------------
 async function drawShop(box) {
-  const s = await api.settings();
+  const [s, pay, ln] = await Promise.all([api.settings(), api.paymentConfig(), api.lineStatus()]);
   const canEdit = auth.can('owner', 'manager');
   const f = (id, label, val, hint = '', type = 'text') => `
     <div class="field"><label>${label}</label>
@@ -53,7 +53,8 @@ async function drawShop(box) {
 
   box.innerHTML = `
     <div class="grid g-2">
-      <div class="card">
+      <div>
+      <div class="card" style="margin-bottom:16px">
         <div class="card-head"><h3>ข้อมูลร้าน</h3><div class="sub">ใช้แสดงบนใบเสร็จ</div></div>
         <div class="card-body">
           ${f('shop_name', 'ชื่อร้าน', s.shop_name)}
@@ -70,6 +71,55 @@ async function drawShop(box) {
           </div>
           ${f('receipt_footer', 'ข้อความท้ายใบเสร็จ', s.receipt_footer)}
         </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>รับชำระเงิน (พร้อมเพย์)</h3><div class="sub">QR รับเงินหน้าร้าน + ตรวจสลิป</div></div>
+        <div class="card-body">
+          ${f('promptpay_id', 'เลขพร้อมเพย์ของร้าน', s.promptpay_id,
+            'เบอร์มือถือ 10 หลัก หรือเลขบัตรประชาชน/นิติบุคคล 13 หลัก — ใช้สร้าง QR พร้อมระบุยอด')}
+          ${f('promptpay_name', 'ชื่อบัญชีที่แสดงใต้ QR', s.promptpay_name, 'เช่น ร้าน Espresso Flow (นายสมชาย ใจดี)')}
+          <div class="field"><label>ตรวจสลิปก่อนปิดบิล</label>
+            <select class="input" id="require_slip" ${canEdit ? '' : 'disabled'}>
+              <option value="1" ${s.require_slip !== '0' ? 'selected' : ''}>บังคับ — พร้อมเพย์/โอนเงินต้องแนบสลิปที่ตรวจผ่าน</option>
+              <option value="0" ${s.require_slip === '0' ? 'selected' : ''}>ไม่บังคับ — แนบสลิปหรือไม่ก็ได้</option>
+            </select></div>
+          <div class="slip-card ${pay.slip_provider ? 'ok' : 'warn'}" style="margin-top:0">
+            <div>${pay.slip_provider
+              ? `<b>✅ เชื่อมต่อ API ตรวจสลิปแล้ว : ${pay.slip_provider === 'easyslip' ? 'EasySlip' : 'SlipOK'}</b>
+                 <div>ระบบตรวจกับธนาคาร: ยอดเงิน บัญชีผู้รับ สลิปปลอม และสลิปซ้ำ</div>`
+              : `<b>ยังไม่ได้เชื่อมต่อ API ตรวจสลิป</b>
+                 <div>ตอนนี้ระบบอ่าน QR บนสลิปเพื่อกันสลิปซ้ำ แล้วให้พนักงานยืนยันยอดเอง
+                 หากต้องการตรวจกับธนาคารอัตโนมัติ ให้สมัคร EasySlip หรือ SlipOK แล้วใส่ API key ในไฟล์ <code>.env</code>
+                 (ดูตัวอย่างใน <code>.env.example</code>) จากนั้นรีสตาร์ทเซิร์ฟเวอร์</div>`}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-head"><h3>LINE Bot แจ้งเตือนลูกค้า</h3><div class="sub">ส่งข้อความเมื่อเครื่องดื่มพร้อมเสิร์ฟ</div></div>
+        <div class="card-body">
+          <div class="field"><label>ส่งออเดอร์จากหน้าขายเข้าคิวบาริสต้า</label>
+            <select class="input" id="use_queue" ${canEdit ? '' : 'disabled'}>
+              <option value="1" ${s.use_queue !== '0' ? 'selected' : ''}>เปิด — ออเดอร์เข้าคิว รอทำ → กำลังทำ → พร้อมเสิร์ฟ → ส่งแล้ว</option>
+              <option value="0" ${s.use_queue === '0' ? 'selected' : ''}>ปิด — บันทึกเป็น "สำเร็จ" ทันที (ไม่มีแจ้งเตือน LINE)</option>
+            </select>
+            <div class="hint">ยอดขายในรายงานนับเมื่อออเดอร์ถูกกด "ส่งให้ลูกค้าแล้ว"</div></div>
+          <div class="slip-card ${ln.configured && ln.ok ? 'ok' : ln.configured ? 'err' : 'warn'}" style="margin-top:0">
+            <div>${ln.configured && ln.ok
+              ? `<b>✅ เชื่อมต่อบอท ${esc(ln.name)} (${esc(ln.basic_id)}) แล้ว</b>
+                 <div>ใบเสร็จของออเดอร์ที่อยู่ในคิวจะมี QR ให้ลูกค้าสแกนรับแจ้งเตือน</div>`
+              : ln.configured
+              ? `<b>เชื่อมต่อ LINE ไม่สำเร็จ</b><div>${esc(ln.error)}</div>`
+              : `<b>ยังไม่ได้เชื่อมต่อ LINE</b>
+                 <div>สร้าง Messaging API channel ที่ LINE Developers แล้วใส่
+                 <code>LINE_CHANNEL_SECRET</code> และ <code>LINE_CHANNEL_ACCESS_TOKEN</code> ในไฟล์ <code>.env</code> แล้วรีสตาร์ทเซิร์ฟเวอร์</div>`}
+              <div style="margin-top:6px">Webhook URL : <code>${esc(ln.webhook)}</code>
+                <div class="hint">LINE ต้องเรียกผ่าน HTTPS สาธารณะ — ถ้าเปิดร้านบนเครื่องนี้ ใช้ cloudflared หรือ ngrok แล้วใส่ URL นั้นแทน localhost</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
       </div>
 
       <div>
@@ -108,7 +158,8 @@ async function drawShop(box) {
   if (btn) btn.onclick = async () => {
     const keys = ['shop_name', 'shop_branch', 'shop_address', 'shop_phone', 'shop_tax_id',
                   'open_time', 'close_time', 'receipt_footer', 'points_per_baht',
-                  'point_redeem_rate', 'tier_gold_spend', 'tier_platinum_spend'];
+                  'point_redeem_rate', 'tier_gold_spend', 'tier_platinum_spend',
+                  'promptpay_id', 'promptpay_name', 'require_slip', 'use_queue'];
     const body = Object.fromEntries(keys.map((k) => [k, $('#' + k).value]));
     try {
       await api.saveSettings(body);
