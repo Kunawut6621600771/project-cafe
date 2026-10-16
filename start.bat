@@ -38,4 +38,8 @@ echo       เว็บร้านกาแฟ: http://localhost:3000
 echo       ดูฐานข้อมูล  : http://localhost:8080
 echo ============================================
 echo.
+REM ---- LINE : เปิด tunnel ให้ LINE ส่ง webhook เข้ามาได้ (ถ้าติดตั้ง cloudflared ไว้) ----
+if exist "C:\Program Files (x86)\cloudflared\cloudflared.exe" (
+    start "LINE Tunnel" cmd /k "timeout /t 5 /nobreak >nul & npm run line:tunnel"
+)
 npm start

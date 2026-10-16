@@ -65,9 +65,14 @@ router.get('/products', auth, wrap(async (req, res) => {
   const links = await db.all('SELECT * FROM product_option_groups');
   const groups = await db.all('SELECT * FROM option_groups ORDER BY sort_order');
   const opts = await db.all('SELECT * FROM options ORDER BY sort_order, id');
+  // ทำได้อีกกี่แก้ว/ชิ้นจากวัตถุดิบคงเหลือ (วัตถุดิบที่เหลือน้อยที่สุดเทียบกับสูตร) — null = ไม่มีสูตร
+  const makeable = new Map((await db.all(`SELECT r.product_id, MIN(FLOOR(GREATEST(i.stock_qty, 0) / r.qty))::int AS n
+    FROM recipes r JOIN ingredients i ON i.id = r.ingredient_id
+    WHERE r.qty > 0 GROUP BY r.product_id`)).map((r) => [r.product_id, r.n]));
 
   res.json(products.map((p) => ({
     ...p,
+    can_make: makeable.has(p.id) ? makeable.get(p.id) : null,
     option_groups: links.filter((l) => l.product_id === p.id).map((l) => {
       const g = groups.find((x) => x.id === l.group_id);
       return g ? { ...g, options: opts.filter((o) => o.group_id === g.id) } : null;

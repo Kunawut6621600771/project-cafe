@@ -96,6 +96,9 @@ CREATE TABLE IF NOT EXISTS ingredients (
   is_active     SMALLINT  NOT NULL DEFAULT 1,
   updated_at    TIMESTAMP NOT NULL DEFAULT LOCALTIMESTAMP(0)
 );
+-- ระดับเต็มคลัง (แถบระดับสต็อก + จำนวนแนะนำให้สั่ง) และหมวดวัตถุดิบ
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS max_qty  DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS category TEXT;
 
 -- สูตรการผลิต : ใช้ตัดสต็อกอัตโนมัติเมื่อขาย
 CREATE TABLE IF NOT EXISTS recipes (
@@ -217,6 +220,8 @@ CREATE INDEX IF NOT EXISTS idx_orders_member  ON orders(member_id);
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_token       TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_user_id     TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_notified_at TIMESTAMP;
+-- สถานะล่าสุดที่แจ้งลูกค้าทาง LINE แล้ว (กันส่งซ้ำ)
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_last_status TEXT;
 
 CREATE TABLE IF NOT EXISTS order_items (
   id            SERIAL PRIMARY KEY,

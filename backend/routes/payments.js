@@ -25,6 +25,8 @@ router.get('/config', auth, wrap(async (req, res) => {
     promptpay_ready: !!normalizeTarget(id),
     promptpay_masked: maskTarget(id),
     promptpay_name: await getSetting('promptpay_name', ''),
+    // รูป QR รับเงินของร้าน (data URL ที่อัปโหลดในหน้าตั้งค่า) — ลูกค้าสแกนแล้วกรอกยอดเอง
+    qr_image: await getSetting('promptpay_qr_image', ''),
     require_slip: (await getSetting('require_slip', '1')) === '1',
     slip_provider: providerName(),
   });

@@ -78,6 +78,17 @@ describe('POST /api/orders', () => {
     assert.equal(r.status, 400);
   });
 
+  test('ไม่รับบัตรเครดิต และช่องทางที่ไม่รู้จัก', async () => {
+    assert.equal((await order({ payment_method: 'card' })).status, 400);
+    assert.equal((await order({ payment_method: 'bitcoin' })).status, 400);
+  });
+
+  test('รูป QR รับเงินของร้านส่งไปให้หน้าขายผ่าน /payments/config', async () => {
+    await setSettings({ promptpay_qr_image: 'data:image/png;base64,AAAA' });
+    assert.equal((await api.call('GET', '/payments/config')).body.qr_image, 'data:image/png;base64,AAAA');
+    await setSettings({ promptpay_qr_image: '' });
+  });
+
   test('ไม่พบสินค้า / สินค้าปิดการขาย', async () => {
     assert.equal((await api.call('POST', '/orders', { items: [{ product_id: 999999 }] })).status, 400);
     const p = await db.get('SELECT id FROM products ORDER BY id DESC LIMIT 1');
@@ -162,7 +173,8 @@ describe('POST /api/orders', () => {
     assert.equal(r.status, 201);
     const left = await db.get('SELECT stock_qty FROM ingredients WHERE id=?', ing.body.id);
     assert.equal(left.stock_qty, 1000 - 36);
-    const mv = await db.get('SELECT qty, cost FROM stock_movements WHERE ref_id=? AND ref_type=?', r.body.id, 'order');
+    const mv = await db.get('SELECT qty, cost FROM stock_movements WHERE ref_id=? AND ref_type=? AND ingredient_id=?',
+      r.body.id, 'order', ing.body.id);
     assert.deepEqual(mv, { qty: -36, cost: 18 });
     await db.run('DELETE FROM recipes WHERE product_id=?', productId);
   });
@@ -337,6 +349,68 @@ describe('API อื่นที่แก้ไข', () => {
 });
 
 // ---------------------------------------------------------------
+describe('คลังวัตถุดิบตั้งต้น + สูตร', () => {
+  const sku = (s) => db.get('SELECT * FROM products WHERE sku=?', s);
+  const ing = (code) => db.get('SELECT * FROM ingredients WHERE code=?', code);
+
+  test('seed : วัตถุดิบครบทุกหมวด สต็อกเต็มเกินจุดสั่งซื้อ และทุกเมนูมีสูตร', async () => {
+    const { n, low } = await db.get(`SELECT COUNT(*)::int n,
+      SUM(CASE WHEN stock_qty <= min_qty THEN 1 ELSE 0 END)::int low FROM ingredients WHERE code IS NOT NULL AND max_qty > 0`);
+    assert.ok(n >= 90, `วัตถุดิบ ${n} รายการ`);
+    assert.equal(low, 0);
+    // ไม่นับสินค้าที่เทสต์ "ตัดสต็อกตามสูตร" ลบสูตรทิ้งไปแล้ว
+    const { missing } = await db.get(`SELECT COUNT(*)::int missing FROM products p
+      WHERE p.sku IS NOT NULL AND p.id <> ? AND NOT EXISTS (SELECT 1 FROM recipes r WHERE r.product_id=p.id)`, productId);
+    assert.equal(missing, 0);
+    const cats = await api.call('GET', '/stock/categories');
+    assert.equal(cats.status, 200);
+    assert.ok(cats.body.length >= 9);
+    assert.equal(cats.body[0].name, 'กาแฟ');
+  });
+
+  test('ต้นทุนเมนูคิดจากสูตรจริง', async () => {
+    const p = await sku('IC02');
+    const { c } = await db.get(`SELECT SUM(r.qty * i.cost_per_unit) c FROM recipes r
+      JOIN ingredients i ON i.id=r.ingredient_id WHERE r.product_id=?`, p.id);
+    assert.ok(Math.abs(p.cost - c) < 0.01);
+    assert.ok(p.cost > 0 && p.cost < p.price);
+  });
+
+  test('หน้าขายรู้ว่าทำได้อีกกี่แก้ว และวัตถุดิบหมด → 0', async () => {
+    const p = await sku('TM08');                       // นมชมพู : SY10 30 มล. ต่อแก้ว
+    const syrup = await ing('SY10');
+    const find = async () => (await api.call('GET', '/products')).body.find((x) => x.id === p.id);
+    await db.run('UPDATE ingredients SET stock_qty=95 WHERE id=?', syrup.id);
+    assert.equal((await find()).can_make, 3);
+    await db.run('UPDATE ingredients SET stock_qty=0 WHERE id=?', syrup.id);
+    assert.equal((await find()).can_make, 0);
+    await db.run('UPDATE ingredients SET stock_qty=? WHERE id=?', syrup.stock_qty, syrup.id);
+  });
+
+  test('แถบระดับสต็อก = % ของเต็มคลัง และใบสั่งซื้อแนะนำให้เติมจนเต็ม', async () => {
+    const tonic = await ing('DR02');                   // ขั้นต่ำ 1500 เต็ม 6000
+    await db.run('UPDATE ingredients SET stock_qty=1200 WHERE id=?', tonic.id);
+    const row = (await api.call('GET', '/stock/ingredients?category=' + encodeURIComponent(tonic.category)))
+      .body.find((x) => x.id === tonic.id);
+    assert.equal(row.level_pct, 20);
+    assert.equal(row.stock_status, 'low');
+    const po = (await api.call('GET', '/stock/alerts')).body.find((x) => x.id === tonic.id);
+    assert.equal(po.suggest_order, 4800);
+    assert.equal(po.suggest_cost, 192);
+    await db.run('UPDATE ingredients SET stock_qty=? WHERE id=?', tonic.stock_qty, tonic.id);
+  });
+
+  test('แก้ไขวัตถุดิบ : บันทึกเต็มคลังและหมวดได้', async () => {
+    const created = await api.call('POST', '/stock/ingredients',
+      { name: 'ไซรัปเทสต์', unit: 'มล.', min_qty: 100, max_qty: 900, category: 'ไซรัป & ซอส' });
+    assert.equal(created.body.max_qty, 900);
+    const upd = await api.call('PUT', `/stock/ingredients/${created.body.id}`, { max_qty: 1200, category: 'ทดสอบ' });
+    assert.equal(upd.body.max_qty, 1200);
+    assert.equal(upd.body.category, 'ทดสอบ');
+  });
+});
+
+// ---------------------------------------------------------------
 describe('LINE webhook', () => {
   const realFetch = globalThis.fetch;
   const sent = [];
@@ -392,5 +466,110 @@ describe('LINE webhook', () => {
   test('ข้อความอื่น → ตอบวิธีใช้', async () => {
     await hook([{ type: 'message', replyToken: 'r2', source: { userId: 'U1' }, message: { type: 'text', text: 'สวัสดี' } }]);
     assert.ok(sent.some((m) => m.replyToken === 'r2'));
+  });
+
+  /** สร้างออเดอร์ในคิว แล้วผูก LINE ผ่าน webhook ที่วิ่งมาทาง https (เหมือนผ่าน tunnel) */
+  async function linkedOrder(token, userId) {
+    const o = (await order({ status: 'pending' })).body;
+    await db.run('UPDATE orders SET line_token=? WHERE id=?', token, o.id);
+    const raw = JSON.stringify({ events: [{
+      type: 'message', replyToken: `link-${token}`, source: { userId },
+      message: { type: 'text', text: `รับแจ้งเตือน ${o.order_no} รหัส ${token}` },
+    }] });
+    const sig = crypto.createHmac('sha256', 'test-secret').update(raw).digest('base64');
+    await realFetch(api.base + '/api/line/webhook', {
+      method: 'POST', body: raw,
+      headers: {
+        'Content-Type': 'application/json', 'x-line-signature': sig,
+        'x-forwarded-proto': 'https', 'x-forwarded-host': 'cafe.example.com',
+      },
+    });
+    return o;
+  }
+
+  test('ผูกแล้วได้ลิงก์ติดตามออเดอร์ + แจ้งทุกครั้งที่สถานะเปลี่ยน ครั้งเดียวต่อสถานะ', async () => {
+    const o = await linkedOrder('CD34', 'U777');
+    const reply = sent.find((m) => m.replyToken === 'link-CD34');
+    assert.ok(JSON.stringify(reply).includes(`https://cafe.example.com/track/${o.order_no}?t=CD34`));
+
+    const pushes = () => sent.filter((m) => m.to === 'U777');
+    assert.equal((await api.call('PATCH', `/orders/${o.id}/status`, { status: 'preparing' })).body.line_notified, true);
+    assert.equal((await api.call('PATCH', `/orders/${o.id}/status`, { status: 'preparing' })).body.line_notified, false);
+    assert.equal((await api.call('PATCH', `/orders/${o.id}/status`, { status: 'ready' })).body.line_notified, true);
+    assert.equal((await api.call('PATCH', `/orders/${o.id}/status`, { status: 'completed' })).body.line_notified, true);
+    assert.equal(pushes().length, 3);
+    assert.match(pushes()[1].messages[0].altText, /พร้อมแล้ว/);
+  });
+
+  test('LINE_NOTIFY=ready → แจ้งเฉพาะตอนพร้อมเสิร์ฟ', async () => {
+    process.env.LINE_NOTIFY = 'ready';
+    try {
+      const o = await linkedOrder('EF56', 'U888');
+      assert.equal((await api.call('PATCH', `/orders/${o.id}/status`, { status: 'preparing' })).body.line_notified, false);
+      assert.equal((await api.call('PATCH', `/orders/${o.id}/status`, { status: 'ready' })).body.line_notified, true);
+    } finally {
+      delete process.env.LINE_NOTIFY;
+    }
+  });
+});
+
+// ---------------------------------------------------------------
+describe('ติดตามออเดอร์ (สาธารณะ)', () => {
+  let o;
+  before(async () => {
+    o = (await order({ status: 'pending' })).body;
+    await db.run("UPDATE orders SET line_token='TR99' WHERE id=?", o.id);
+  });
+
+  test('รหัสถูก → เห็นสถานะและรายการ แต่ไม่เห็นต้นทุน', async () => {
+    const res = await fetch(`${api.base}/api/track/${o.order_no}?t=tr99`);
+    const d = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(d.status, 'pending');
+    assert.equal(d.items.length, 1);
+    assert.equal(d.cost_total, undefined);
+    assert.equal(d.items[0].unit_cost, undefined);
+  });
+
+  test('รหัสผิด / ไม่มีรหัส → 404', async () => {
+    assert.equal((await fetch(`${api.base}/api/track/${o.order_no}?t=XXXX`)).status, 404);
+    assert.equal((await fetch(`${api.base}/api/track/${o.order_no}`)).status, 404);
+    assert.equal((await fetch(`${api.base}/api/track/${o.order_no}/stream?t=XXXX`)).status, 404);
+  });
+
+  test('หน้า /track/:orderNo เสิร์ฟหน้าเว็บติดตาม', async () => {
+    const html = await (await fetch(`${api.base}/track/${o.order_no}?t=TR99`)).text();
+    assert.match(html, /\/js\/track\.js/);
+  });
+
+  test('stream ส่งสถานะใหม่ทันทีเมื่อพนักงานเปลี่ยนสถานะ', async () => {
+    const ctrl = new AbortController();
+    const res = await fetch(`${api.base}/api/track/${o.order_no}/stream?t=TR99`, { signal: ctrl.signal });
+    assert.match(res.headers.get('content-type'), /text\/event-stream/);
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    const nextStatus = async () => {
+      for (;;) {
+        const i = buf.indexOf('\n\n');
+        if (i >= 0) {
+          const chunk = buf.slice(0, i);
+          buf = buf.slice(i + 2);
+          const data = chunk.split('\n').find((l) => l.startsWith('data: '));
+          if (chunk.includes('event: status') && data) return JSON.parse(data.slice(6)).status;
+          continue;
+        }
+        const { value, done } = await reader.read();
+        if (done) throw new Error('stream ปิดก่อนได้ข้อมูล');
+        buf += dec.decode(value, { stream: true });
+      }
+    };
+    try {
+      assert.equal(await nextStatus(), 'pending');
+      await api.call('PATCH', `/orders/${o.id}/status`, { status: 'preparing' });
+      assert.equal(await nextStatus(), 'preparing');
+    } finally {
+      ctrl.abort();
+    }
   });
 });

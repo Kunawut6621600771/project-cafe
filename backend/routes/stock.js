@@ -8,6 +8,10 @@ const { wrap, round2 } = require('../utils/helpers');
 
 const manager = [auth, requireRole('owner', 'manager')];
 
+/** ระดับเต็มคลัง : ใช้ max_qty ถ้าตั้งไว้ ไม่งั้นถือว่า 2 เท่าของขั้นต่ำ */
+const fullLevel = (r) => (r.max_qty > 0 ? r.max_qty : r.min_qty * 2);
+const FULL_SQL = 'CASE WHEN max_qty > 0 THEN max_qty ELSE min_qty * 2 END';
+
 /** สถานะสต็อก : หมด / ใกล้หมด / ปกติ */
 function stockStatus(r) {
   if (r.stock_qty <= 0) return 'out';
@@ -17,8 +21,9 @@ function stockStatus(r) {
 
 // GET /api/stock/ingredients
 router.get('/ingredients', auth, wrap(async (req, res) => {
-  const { q, status } = req.query;
+  const { q, status, category } = req.query;
   const where = [], args = [];
+  if (category) { where.push('category = ?'); args.push(category); }
   if (q) { where.push('(name ILIKE ? OR code ILIKE ? OR supplier ILIKE ?)'); args.push(`%${q}%`, `%${q}%`, `%${q}%`); }
   if (status === 'low') where.push('stock_qty <= min_qty AND stock_qty > 0');
   if (status === 'out') where.push('stock_qty <= 0');
@@ -26,13 +31,25 @@ router.get('/ingredients', auth, wrap(async (req, res) => {
 
   const rows = await db.all(`SELECT * FROM ingredients
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-    ORDER BY (stock_qty <= min_qty) DESC, name`, args);
+    ORDER BY (stock_qty <= min_qty) DESC, id`, args);
 
-  res.json(rows.map((r) => ({
-    ...r,
-    stock_value: round2(r.stock_qty * r.cost_per_unit),
-    stock_status: stockStatus(r),
-  })));
+  res.json(rows.map((r) => {
+    const full = fullLevel(r);
+    return {
+      ...r,
+      stock_value: round2(r.stock_qty * r.cost_per_unit),
+      stock_status: stockStatus(r),
+      full_level: full,
+      level_pct: full > 0 ? Math.max(0, Math.min(100, Math.round((r.stock_qty / full) * 100))) : 0,
+    };
+  }));
+}));
+
+// GET /api/stock/categories : หมวดวัตถุดิบพร้อมจำนวน
+router.get('/categories', auth, wrap(async (req, res) => {
+  res.json(await db.all(`SELECT COALESCE(category, 'อื่น ๆ') AS name, COUNT(*)::int AS count,
+      SUM(CASE WHEN stock_qty <= min_qty THEN 1 ELSE 0 END)::int AS low
+    FROM ingredients WHERE is_active=1 GROUP BY 1 ORDER BY MIN(id)`));
 }));
 
 // GET /api/stock/summary : การ์ดสรุปหน้าคลัง
@@ -50,8 +67,9 @@ router.get('/summary', auth, wrap(async (req, res) => {
 
 // GET /api/stock/alerts : รายการที่ต้องสั่งซื้อ
 router.get('/alerts', auth, wrap(async (req, res) => {
-  res.json(await db.all(`SELECT id,code,name,unit,stock_qty,min_qty,supplier,
-      ROUND((min_qty * 2 - stock_qty)::numeric, 2) AS suggest_order
+  res.json(await db.all(`SELECT id,code,name,unit,stock_qty,min_qty,max_qty,supplier,cost_per_unit,
+      ROUND((${FULL_SQL} - stock_qty)::numeric, 2) AS suggest_order,
+      ROUND(((${FULL_SQL} - stock_qty) * cost_per_unit)::numeric, 2) AS suggest_cost
     FROM ingredients WHERE is_active=1 AND stock_qty <= min_qty
     ORDER BY (stock_qty / NULLIF(min_qty,0)) ASC`));
 }));
@@ -83,10 +101,10 @@ router.post('/ingredients', manager, wrap(async (req, res) => {
 
   const id = await tx(async (t) => {
     const newId = await t.insert(
-      `INSERT INTO ingredients (code,name,unit,stock_qty,min_qty,cost_per_unit,supplier)
-       VALUES (?,?,?,?,?,?,?)`,
+      `INSERT INTO ingredients (code,name,unit,stock_qty,min_qty,max_qty,cost_per_unit,category,supplier)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
       code, b.name, b.unit || 'กรัม', Number(b.stock_qty || 0), Number(b.min_qty || 0),
-      Number(b.cost_per_unit || 0), b.supplier || null);
+      Number(b.max_qty || 0), Number(b.cost_per_unit || 0), b.category || null, b.supplier || null);
     if (Number(b.stock_qty) > 0) {
       await t.run(`INSERT INTO stock_movements (ingredient_id,type,qty,balance_after,cost,ref_type,note,user_id)
         VALUES (?,'in',?,?,?,'manual','ยอดยกมาเริ่มต้น',?)`,
@@ -104,10 +122,10 @@ router.put('/ingredients/:id', manager, wrap(async (req, res) => {
   const cur = await db.get('SELECT * FROM ingredients WHERE id=?', req.params.id);
   if (!cur) return res.status(404).json({ error: 'ไม่พบวัตถุดิบ' });
   const b = { ...cur, ...req.body };
-  await db.run(`UPDATE ingredients SET name=?,unit=?,min_qty=?,cost_per_unit=?,supplier=?,is_active=?,
-                updated_at=LOCALTIMESTAMP(0) WHERE id=?`,
-    b.name, b.unit, Number(b.min_qty), Number(b.cost_per_unit), b.supplier || null,
-    b.is_active ? 1 : 0, req.params.id);
+  await db.run(`UPDATE ingredients SET name=?,unit=?,min_qty=?,max_qty=?,cost_per_unit=?,category=?,supplier=?,
+                is_active=?, updated_at=LOCALTIMESTAMP(0) WHERE id=?`,
+    b.name, b.unit, Number(b.min_qty), Number(b.max_qty || 0), Number(b.cost_per_unit), b.category || null,
+    b.supplier || null, b.is_active ? 1 : 0, req.params.id);
   res.json(await db.get('SELECT * FROM ingredients WHERE id=?', req.params.id));
 }));
 

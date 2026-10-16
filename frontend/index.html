@@ -3,55 +3,100 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Espresso Flow — ระบบจัดการร้านกาแฟ</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <title>ผู้ชายขายน้ำ — ระบบจัดการร้าน</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥤</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Mitr:wght@500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Charm:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
   <!-- ============ หน้าเข้าสู่ระบบ ============ -->
   <div class="login-wrap" id="loginView">
+    <!-- ฉากหลัง : รูปร้าน (ซูมช้า ๆ) + แสงไฟอุ่น + เมล็ดกาแฟลอย -->
+    <div class="login-bg" aria-hidden="true"></div>
+    <div class="login-glow" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="beans" aria-hidden="true">
+      <span style="--x:6%;--s:16px;--t:19s;--d:-2s;--r:40deg"></span>
+      <span style="--x:15%;--s:11px;--t:24s;--d:-11s;--r:-60deg"></span>
+      <span style="--x:27%;--s:20px;--t:21s;--d:-6s;--r:120deg"></span>
+      <span style="--x:39%;--s:12px;--t:27s;--d:-17s;--r:10deg"></span>
+      <span style="--x:52%;--s:15px;--t:23s;--d:-3s;--r:-30deg"></span>
+      <span style="--x:64%;--s:22px;--t:26s;--d:-14s;--r:80deg"></span>
+      <span style="--x:75%;--s:13px;--t:20s;--d:-8s;--r:-100deg"></span>
+      <span style="--x:86%;--s:18px;--t:25s;--d:-19s;--r:150deg"></span>
+      <span style="--x:94%;--s:10px;--t:22s;--d:-5s;--r:-15deg"></span>
+    </div>
+
     <div class="login-card">
       <div class="login-hero">
-        <div>
-          <div class="logo"><span style="font-size:24px">☕</span> Espresso Flow</div>
-          <h1>ระบบจัดการร้านกาแฟ<br>ครบทุกงานหน้าร้าน</h1>
-          <p>ขายหน้าร้าน · ตัดสต็อกอัตโนมัติ · สมาชิกสะสมแต้ม · รายงานยอดขาย</p>
+        <div class="logo">
+          <span class="logo-mark"><svg class="brand-svg" viewBox="0 0 40 40" aria-hidden="true">
+            <path d="M22.5 11 25 2.5l3.2-.8" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M10.5 13h19l-2.4 21.6a3 3 0 0 1-3 2.7h-8.2a3 3 0 0 1-3-2.7z" fill="#fdf7ee"/>
+            <path d="M11.6 20.5h16.8l-1.6 14a2 2 0 0 1-2 1.8h-9.6a2 2 0 0 1-2-1.8z" fill="#8c5226"/>
+            <path d="M11.9 23.2c2.8 1.3 5.3-.9 8.1 0 2.9.9 5.3 1.3 8.1 0l-.3 2.6c-2.8 1.2-5.2-.4-7.8-.4-2.7 0-5.3 1.7-7.8.4z" fill="#f6e3cb"/>
+            <rect x="14" y="15.2" width="4.2" height="4.2" rx="1" fill="#e9f4fb" opacity=".9"/>
+            <rect x="20.6" y="14.6" width="4.2" height="4.2" rx="1" fill="#e9f4fb" opacity=".75" transform="rotate(12 22.7 16.7)"/>
+            <rect x="8.5" y="10.4" width="23" height="3.4" rx="1.7" fill="#e0a463"/>
+          </svg></span>
+          <span><b>ผู้ชายขายน้ำ</b><small>Coffee · Tea · Soda</small></span>
         </div>
+
+
         <div>
-          <div class="feat"><span>🧾</span><span>ระบบ POS พร้อมพิมพ์ใบเสร็จและตัวเลือกเครื่องดื่ม</span></div>
-          <div class="feat"><span>📦</span><span>ตัดวัตถุดิบตามสูตรทุกครั้งที่ขาย พร้อมแจ้งเตือนของใกล้หมด</span></div>
-          <div class="feat"><span>📊</span><span>สรุปกำไร-ขาดทุน และเมนูขายดีแบบเรียลไทม์</span></div>
+          <h1>ระบบจัดการร้านเครื่องดื่ม<br><em>ครบทุกงานหน้าร้าน</em></h1>
+          <p>ขายหน้าร้าน · ตัดสต็อกอัตโนมัติ · สมาชิกสะสมแต้ม · รายงานยอดขาย</p>
+          <div class="feats">
+            <span>🧾 POS & ใบเสร็จ</span>
+            <span>📦 ตัดสต็อกตามสูตร</span>
+            <span>⭐ สะสมแต้ม</span>
+            <span>📊 รายงานเรียลไทม์</span>
+          </div>
+        </div>
+
+        <div class="hero-clock">
+          <span class="dot"></span>
+          <span>ร้านเปิดอยู่ · <b id="loginClock">--:--</b></span>
+          <span class="date" id="loginDate"></span>
         </div>
       </div>
 
       <form class="login-form" id="loginForm">
+        <div class="greet" id="loginGreet">🥤 ยินดีต้อนรับ</div>
         <h2>เข้าสู่ระบบ</h2>
-        <p class="sub">กรอกข้อมูลเพื่อเริ่มใช้งานระบบ</p>
+        <p class="sub">พร้อมชงความสุขให้ลูกค้าแล้วหรือยัง? กรอกข้อมูลเพื่อเริ่มกะของคุณ</p>
 
         <div class="field">
           <label for="username">ชื่อผู้ใช้</label>
-          <input class="input" id="username" name="username" autocomplete="username" placeholder="เช่น admin" required>
+          <div class="input-ico">
+            <span class="ico">👤</span>
+            <input class="input" id="username" name="username" autocomplete="username" placeholder="เช่น admin" required>
+          </div>
         </div>
         <div class="field">
           <label for="password">รหัสผ่าน</label>
-          <input class="input" id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
-        </div>
-
-        <div id="loginError" style="display:none;color:#dc2626;font-size:13px;margin-bottom:12px"></div>
-        <button class="btn btn-primary btn-lg btn-block" type="submit" id="loginBtn">เข้าสู่ระบบ</button>
-
-        <div class="demo-hint">
-          <b>บัญชีทดลองใช้งาน (คลิกเพื่อกรอกอัตโนมัติ)</b>
-          <div class="demo-users">
-            <button type="button" data-u="admin" data-p="admin123">เจ้าของร้าน</button>
-            <button type="button" data-u="manager" data-p="manager123">ผู้จัดการ</button>
-            <button type="button" data-u="staff01" data-p="staff123">พนักงาน</button>
+          <div class="input-ico">
+            <span class="ico">🔒</span>
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+            <button type="button" class="eye" id="pwToggle" aria-label="แสดงรหัสผ่าน">👁️</button>
           </div>
         </div>
+
+        <div id="loginError" class="login-error" style="display:none"></div>
+        <button class="btn btn-primary btn-lg btn-block btn-login" type="submit" id="loginBtn">
+          <span class="lbl">เข้าสู่ระบบ</span><span class="arr">→</span>
+        </button>
+
+        <div class="or"><span>หรือลองด้วยบัญชีตัวอย่าง</span></div>
+        <div class="demo-users">
+          <button type="button" data-u="admin" data-p="admin123"><i>👑</i><b>เจ้าของร้าน</b><small>admin</small></button>
+          <button type="button" data-u="manager" data-p="manager123"><i>💼</i><b>ผู้จัดการ</b><small>manager</small></button>
+          <button type="button" data-u="staff01" data-p="staff123"><i>🙋</i><b>พนักงาน</b><small>staff01</small></button>
+        </div>
+
+        <p class="login-foot">“ทุกแก้วที่ดี เริ่มจากระบบที่ดี”</p>
       </form>
     </div>
   </div>
@@ -60,8 +105,16 @@
   <div class="app" id="app">
     <aside class="sidebar" id="sidebar">
       <div class="brand">
-        <div class="mark">☕</div>
-        <div><b>Espresso Flow</b><span id="brandBranch">สาขาสยามสแควร์</span></div>
+        <div class="mark"><svg class="brand-svg" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M22.5 11 25 2.5l3.2-.8" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M10.5 13h19l-2.4 21.6a3 3 0 0 1-3 2.7h-8.2a3 3 0 0 1-3-2.7z" fill="#fdf7ee"/>
+        <path d="M11.6 20.5h16.8l-1.6 14a2 2 0 0 1-2 1.8h-9.6a2 2 0 0 1-2-1.8z" fill="#8c5226"/>
+        <path d="M11.9 23.2c2.8 1.3 5.3-.9 8.1 0 2.9.9 5.3 1.3 8.1 0l-.3 2.6c-2.8 1.2-5.2-.4-7.8-.4-2.7 0-5.3 1.7-7.8.4z" fill="#f6e3cb"/>
+        <rect x="14" y="15.2" width="4.2" height="4.2" rx="1" fill="#e9f4fb" opacity=".9"/>
+        <rect x="20.6" y="14.6" width="4.2" height="4.2" rx="1" fill="#e9f4fb" opacity=".75" transform="rotate(12 22.7 16.7)"/>
+        <rect x="8.5" y="10.4" width="23" height="3.4" rx="1.7" fill="#e0a463"/>
+      </svg></div>
+        <div><b id="brandName">ผู้ชายขายน้ำ</b><span id="brandBranch">สาขาหลัก</span></div>
       </div>
       <nav class="nav" id="nav"></nav>
       <div class="foot">

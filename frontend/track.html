@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2b1a0f">
+  <title>ติดตามออเดอร์ — ผู้ชายขายน้ำ</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥤</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Mitr:wght@500;600&family=Charm:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --espresso: #2b1a0f; --cream: #fbf6ee; --latte: #e8c9a0; --muted: #8a7766; --line: #eadfce;
+      --green: #16a34a; --green-d: #166534; --amber: #c27a3a; --red: #b91c1c; --blue: #1e3a8a;
+      --accent: var(--amber);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans Thai', system-ui, sans-serif; color: var(--espresso); min-height: 100vh;
+      background: var(--cream); -webkit-font-smoothing: antialiased;
+    }
+    .hero {
+      position: relative; color: #fff; text-align: center; padding: 26px 20px 86px; overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(28,17,10,.55), rgba(28,17,10,.85)),
+        url('/assets/bg/login-barista.jpg') center / cover no-repeat, var(--espresso);
+    }
+    .hero .shop { font-family: 'Mitr', 'Noto Sans Thai', sans-serif; font-size: 20px; letter-spacing: .01em; }
+    .hero .sub { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--latte); margin-top: 2px; }
+    .live {
+      display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; font-size: 12px;
+      padding: 4px 12px; border-radius: 999px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18);
+    }
+    .live i { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
+    .live.on i { background: #4ade80; animation: pulse 2s infinite; }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(74,222,128,.7); } 70% { box-shadow: 0 0 0 8px rgba(74,222,128,0); } 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); } }
+
+    .wrap { max-width: 480px; margin: -64px auto 0; padding: 0 16px 32px; position: relative; }
+    .card {
+      background: #fff; border-radius: 22px; border: 1px solid var(--line);
+      box-shadow: 0 18px 40px rgba(60,35,15,.14); overflow: hidden; margin-bottom: 14px;
+      animation: rise .6s cubic-bezier(.2,.8,.2,1) both;
+    }
+    .card + .card { animation-delay: .1s; }
+    @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+    .status { text-align: center; padding: 26px 20px 22px; }
+    .status .q-label { font-size: 12px; color: var(--muted); }
+    .status .q { font-size: 46px; font-weight: 700; line-height: 1.1; color: var(--accent); letter-spacing: -.02em; transition: color .4s; }
+    .art { height: 110px; display: grid; place-items: center; margin: 12px 0 6px; position: relative; }
+    .art .em { font-size: 66px; line-height: 1; display: inline-block; }
+    .st-pending   .art .em { animation: bob 2.2s ease-in-out infinite; }
+    .st-preparing .art .em { animation: wiggle 1.6s ease-in-out infinite; }
+    .st-ready     .art .em { animation: ring 1.2s ease-in-out infinite; transform-origin: 50% 10%; }
+    .st-completed .art .em { animation: pop .6s cubic-bezier(.3,1.8,.5,1) both; }
+    @keyframes bob { 50% { transform: translateY(-8px); } }
+    @keyframes wiggle { 25% { transform: rotate(-6deg); } 75% { transform: rotate(6deg); } }
+    @keyframes ring { 0%, 50%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(14deg); } 20%, 40% { transform: rotate(-14deg); } }
+    @keyframes pop { from { transform: scale(.3); opacity: 0; } }
+    .steam { position: absolute; top: 2px; left: 50%; width: 60px; margin-left: -30px; height: 40px; display: none; }
+    .st-preparing .steam { display: block; }
+    .steam span {
+      position: absolute; bottom: 0; width: 5px; height: 22px; border-radius: 5px; background: rgba(150,120,90,.45);
+      filter: blur(1px); opacity: 0; animation: steam 2.4s ease-in-out infinite;
+    }
+    .steam span:nth-child(1) { left: 14px; } .steam span:nth-child(2) { left: 28px; animation-delay: .8s; } .steam span:nth-child(3) { left: 42px; animation-delay: 1.6s; }
+    @keyframes steam { 0% { opacity: 0; transform: translateY(10px) scaleY(.6); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(-18px) scaleY(1.2) skewX(10deg); } }
+
+    .status h1 { font-size: 21px; margin-top: 4px; }
+    .status p { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 22px; position: relative; }
+    .steps::before, .steps .bar {
+      content: ''; position: absolute; top: 15px; left: 12.5%; right: 12.5%; height: 4px; border-radius: 4px; background: var(--line);
+    }
+    .steps .bar { right: auto; width: 0; background: linear-gradient(90deg, var(--green), #4ade80); transition: width .8s cubic-bezier(.2,.8,.2,1); }
+    .step { text-align: center; position: relative; font-size: 11.5px; color: var(--muted); }
+    .step .dot {
+      width: 34px; height: 34px; border-radius: 50%; margin: 0 auto 6px; display: grid; place-items: center;
+      background: #fff; border: 3px solid var(--line); font-size: 15px; transition: .4s; position: relative;
+    }
+    .step.done .dot { border-color: var(--green); background: #f0fdf4; }
+    .step.now .dot { border-color: var(--green); background: var(--green); color: #fff; transform: scale(1.12); box-shadow: 0 0 0 6px rgba(22,163,74,.15); }
+    .step.now { color: var(--espresso); font-weight: 700; }
+    .step.done { color: var(--green-d); }
+
+    .banner {
+      display: none; margin: 18px 0 0; padding: 12px 14px; border-radius: 14px; font-size: 13.5px; font-weight: 600;
+      background: #f0fdf4; color: var(--green-d); border: 1px solid #bbf7d0;
+    }
+    .st-ready .banner { display: block; animation: glow 1.6s ease-in-out infinite; }
+    @keyframes glow { 50% { box-shadow: 0 0 0 6px rgba(22,163,74,.12); } }
+
+    .items { padding: 16px 18px; }
+    .items h3 { font-size: 14px; margin-bottom: 8px; display: flex; justify-content: space-between; }
+    .items h3 small { color: var(--muted); font-weight: 500; }
+    .it { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--line); font-size: 13.5px; }
+    .it:last-of-type { border-bottom: none; }
+    .it .n { flex: 1; } .it .n small { display: block; color: var(--muted); font-size: 12px; }
+    .it .x { color: var(--muted); }
+    .total { display: flex; justify-content: space-between; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--line); font-weight: 700; }
+
+    .meta { text-align: center; font-size: 12px; color: var(--muted); }
+    .meta .quote { font-family: 'Charm', cursive; font-size: 18px; color: #a08a72; margin-top: 8px; }
+    .error { text-align: center; padding: 40px 20px; }
+    .error .em { font-size: 48px; }
+
+    .confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 50; }
+    .confetti i {
+      position: absolute; top: -12px; width: 8px; height: 14px; border-radius: 2px; opacity: .9;
+      animation: fall var(--d) cubic-bezier(.3,.6,.5,1) forwards;
+    }
+    @keyframes fall { to { transform: translate(var(--x), 105vh) rotate(var(--r)); opacity: 0; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="shop" id="shop">ผู้ชายขายน้ำ</div>
+    <div class="sub">Order Tracking</div>
+    <div class="live" id="live"><i></i><span>กำลังเชื่อมต่อ...</span></div>
+  </header>
+
+  <main class="wrap" id="main">
+    <section class="card status st-pending" id="statusCard">
+      <div class="q-label">หมายเลขคิวของคุณ</div>
+      <div class="q" id="queue">#----</div>
+      <div class="art"><div class="steam"><span></span><span></span><span></span></div><span class="em" id="art">🧾</span></div>
+      <h1 id="title">กำลังโหลด...</h1>
+      <p id="desc"></p>
+      <div class="steps" id="steps"><div class="bar" id="bar"></div></div>
+      <div class="banner" id="banner"></div>
+    </section>
+
+    <section class="card items" id="itemsCard">
+      <h3>รายการของคุณ <small id="orderNo"></small></h3>
+      <div id="items"></div>
+    </section>
+
+    <div class="meta">
+      <div id="updated"></div>
+      <div class="quote">“ทุกแก้วชงด้วยใจ”</div>
+    </div>
+  </main>
+
+  <script type="module" src="/js/track.js"></script>
+</body>
+</html>

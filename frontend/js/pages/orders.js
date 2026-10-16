@@ -1,7 +1,7 @@
 /** หน้าออเดอร์ — คิวหน้าร้าน + ประวัติการขาย */
 import { api, auth } from '../api.js';
 import { refreshQueueBadge } from '../app.js';
-import { showReceipt } from './pos.js';
+import { showReceipt } from '../receipt.js';
 import {
   $, $$, esc, baht, num, toast, modal, confirmBox, emptyHTML, statusBadge,
   ORDER_TYPE, PAYMENT, PAYMENT_ICON, fmtDateTime, ago, todayStr, dateShift,

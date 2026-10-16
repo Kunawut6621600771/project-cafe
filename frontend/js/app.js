@@ -1,6 +1,7 @@
 /** Espresso Flow — โครงหลักของแอป (router + layout) */
 import { api, auth } from './api.js';
 import { $, $$, toast, esc } from './utils.js';
+import { initFx, initLoginFx, shakeLogin, pageEnter } from './fx.js';
 
 import dashboard from './pages/dashboard.js';
 import pos from './pages/pos.js';
@@ -38,8 +39,10 @@ function bindLogin() {
     e.preventDefault();
     err.style.display = 'none';
     const btn = $('#loginBtn');
+    const lbl = btn.querySelector('.lbl');
     btn.disabled = true;
-    btn.textContent = 'กำลังเข้าสู่ระบบ...';
+    btn.classList.add('is-loading');
+    lbl.textContent = 'กำลังเข้าสู่ระบบ...';
     try {
       const r = await api.login($('#username').value.trim(), $('#password').value);
       auth.save(r.token, r.user);
@@ -48,9 +51,11 @@ function bindLogin() {
     } catch (ex) {
       err.textContent = ex.message;
       err.style.display = 'block';
+      shakeLogin();
     } finally {
       btn.disabled = false;
-      btn.textContent = 'เข้าสู่ระบบ';
+      btn.classList.remove('is-loading');
+      lbl.textContent = 'เข้าสู่ระบบ';
     }
   });
 }
@@ -124,6 +129,7 @@ async function route() {
   page.innerHTML = '<div class="loading"><div class="spinner"></div>กำลังโหลด...</div>';
   try {
     await r.page.render(page);
+    pageEnter(page);
   } catch (e) {
     page.innerHTML = `<div class="card"><div class="card-body empty">
       <span class="em">⚠️</span>โหลดข้อมูลไม่สำเร็จ<br><small>${esc(e.message)}</small>
@@ -142,8 +148,9 @@ async function startApp() {
 
   try {
     const s = await api.settings();
+    $('#brandName').textContent = s.shop_name || 'ผู้ชายขายน้ำ';
     $('#brandBranch').textContent = s.shop_branch || '';
-    document.title = `${s.shop_name || 'Espresso Flow'} — ระบบจัดการร้านกาแฟ`;
+    document.title = `${s.shop_name || 'ผู้ชายขายน้ำ'} — ระบบจัดการร้าน`;
   } catch { /* ใช้ค่าเริ่มต้น */ }
 
   refreshQueueBadge();
@@ -164,6 +171,8 @@ $('#logoutBtn').addEventListener('click', logout);
 $('#menuToggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
 
 bindLogin();
+initLoginFx();
+initFx();
 tickClock();
 setInterval(tickClock, 30000);
 setInterval(() => { if (auth.token) refreshQueueBadge(); }, 60000);

@@ -4,6 +4,7 @@ import {
   $, $$, esc, baht, num, toast, modal, confirmBox, emptyHTML, productThumb,
   ROLE, fmtDate, fmtDateTime, todayStr,
 } from '../utils.js';
+import { readSlip } from '../slip.js';
 
 let tab = 'shop';
 
@@ -82,9 +83,33 @@ function lineStatusHTML(ln) {
 }
 
 const SHOP_KEYS = ['shop_name', 'shop_branch', 'shop_address', 'shop_phone', 'shop_tax_id',
+                   'shop_line_id', 'shop_facebook', 'shop_instagram', 'shop_website',
                    'open_time', 'close_time', 'receipt_footer', 'points_per_baht',
                    'point_redeem_rate', 'tier_gold_spend', 'tier_platinum_spend',
-                   'promptpay_id', 'promptpay_name', 'require_slip', 'use_queue'];
+                   'promptpay_id', 'promptpay_name', 'promptpay_qr_image', 'require_slip', 'use_queue'];
+
+/** อัปโหลดรูป QR รับเงิน : ตรวจว่าเป็น QR พร้อมเพย์จริง แล้วเก็บเป็นรูปย่อ (กดบันทึกการตั้งค่าเพื่อยืนยัน) */
+function bindQrUpload() {
+  const file = $('#qrFile');
+  if (!file) return;
+  const setImage = (src) => {
+    $('#promptpay_qr_image').value = src;
+    $('#qrThumb').innerHTML = src ? `<img src="${src}" alt="QR รับเงิน">` : '<span>ยังไม่มีรูป</span>';
+  };
+  file.onchange = async () => {
+    const f = file.files[0];
+    file.value = '';
+    if (!f) return;
+    try {
+      const { qr, image } = await readSlip(f);
+      if (!qr) return toast('ไม่พบ QR ในรูปนี้ ลองใช้รูปที่ชัดกว่านี้', 'err');
+      if (!qr.includes('A000000677010111')) return toast('QR นี้ไม่ใช่ QR พร้อมเพย์', 'err');
+      setImage(image);
+      toast('อ่าน QR พร้อมเพย์ได้ ✓ กด "บันทึกการตั้งค่า" เพื่อใช้งาน', 'ok');
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  $('#qrRemove').onclick = () => { setImage(''); toast('ลบรูปแล้ว กด "บันทึกการตั้งค่า" เพื่อยืนยัน', 'warn'); };
+}
 
 async function saveShopSettings() {
   const body = Object.fromEntries(SHOP_KEYS.map((k) => [k, $('#' + k).value]));
@@ -92,6 +117,7 @@ async function saveShopSettings() {
     await api.saveSettings(body);
     toast('บันทึกการตั้งค่าเรียบร้อย', 'ok');
     $('#brandBranch').textContent = body.shop_branch;
+    $('#brandName').textContent = body.shop_name || 'ผู้ชายขายน้ำ';
   } catch (e) { toast(e.message, 'err'); }
 }
 
@@ -126,11 +152,39 @@ async function drawShop(box) {
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-head"><h3>ช่องทางติดตาม & ติดต่อ</h3><div class="sub">แสดงท้ายใบเสร็จ (เว้นว่างได้)</div></div>
+        <div class="card-body">
+          <div class="grid g-2" style="gap:12px">
+            ${f('shop_line_id', 'LINE Official Account', s.shop_line_id, 'เช่น @espressoflow — เว้นว่างจะใช้ ID ของบอท LINE อัตโนมัติ')}
+            ${f('shop_facebook', 'Facebook Page', s.shop_facebook, 'ชื่อเพจ หรือลิงก์เพจ')}
+          </div>
+          <div class="grid g-2" style="gap:12px">
+            ${f('shop_instagram', 'Instagram', s.shop_instagram, 'เช่น espressoflow.cafe')}
+            ${f('shop_website', 'เว็บไซต์', s.shop_website, 'เช่น www.espressoflow.cafe')}
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-head"><h3>รับชำระเงิน (พร้อมเพย์)</h3><div class="sub">QR รับเงินหน้าร้าน + ตรวจสลิป</div></div>
         <div class="card-body">
-          ${f('promptpay_id', 'เลขพร้อมเพย์ของร้าน', s.promptpay_id,
-            'เบอร์มือถือ 10 หลัก หรือเลขบัตรประชาชน/นิติบุคคล 13 หลัก — ใช้สร้าง QR พร้อมระบุยอด')}
+          <div class="field"><label>รูป QR รับเงินของร้าน</label>
+            <div class="qr-upload">
+              <div class="qr-thumb" id="qrThumb">${s.promptpay_qr_image
+                ? `<img src="${s.promptpay_qr_image}" alt="QR รับเงิน">` : '<span>ยังไม่มีรูป</span>'}</div>
+              <div>
+                ${canEdit ? `<label class="btn btn-sm">📤 อัปโหลด / เปลี่ยนรูป
+                  <input type="file" id="qrFile" accept="image/*" hidden></label>
+                <button type="button" class="btn btn-sm btn-ghost" id="qrRemove">ลบรูป</button>` : ''}
+                <div class="hint" id="qrHint">รูป QR พร้อมเพย์จากแอปธนาคาร (เช่น "QR รับเงิน" ของ SCB)
+                  ใช้เมื่อไม่ได้ใส่เลขพร้อมเพย์ด้านล่าง — ลูกค้าสแกนแล้วกรอกยอดเอง</div>
+              </div>
+            </div>
+            <input type="hidden" id="promptpay_qr_image" value="${esc(s.promptpay_qr_image || '')}">
+          </div>
+          ${f('promptpay_id', 'เลขพร้อมเพย์ของร้าน (QR ล็อกยอด)', s.promptpay_id,
+            'เบอร์มือถือ 10 หลัก หรือเลข 13 หลัก — ระบบสร้าง QR ที่ล็อกยอดให้ทุกบิล (ใช้ก่อนรูป QR ด้านบน)')}
           ${f('promptpay_name', 'ชื่อบัญชีที่แสดงใต้ QR', s.promptpay_name, 'เช่น ร้าน Espresso Flow (นายสมชาย ใจดี)')}
           <div class="field"><label>ตรวจสลิปก่อนปิดบิล</label>
             <select class="input" id="require_slip" ${dis}>
@@ -180,8 +234,8 @@ async function drawShop(box) {
           <div class="card-head"><h3>บัญชีผู้ใช้ของฉัน</h3></div>
           <div class="card-body">
             <div class="row" style="gap:14px;margin-bottom:14px">
-              <div class="avatar" style="width:46px;height:46px;border-radius:50%;background:var(--green-100);
-                   color:var(--green-800);display:grid;place-items:center;font-size:19px;font-weight:700">
+              <div class="avatar" style="width:46px;height:46px;border-radius:50%;background:var(--brand-100);
+                   color:var(--brand-800);display:grid;place-items:center;font-size:19px;font-weight:700">
                 ${esc(auth.user.full_name.charAt(0))}</div>
               <div><b style="font-size:15px">${esc(auth.user.full_name)}</b>
                 <div style="color:var(--muted);font-size:12.5px">${esc(auth.user.username)} · ${ROLE[auth.user.role]}</div></div>
@@ -195,6 +249,7 @@ async function drawShop(box) {
 
   const btn = $('#saveShop');
   if (btn) btn.onclick = saveShopSettings;
+  bindQrUpload();
 
   $('#changePw').onclick = () => {
     const m = modal({

@@ -7,6 +7,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('node:path');
 const { initSchema, db, DB_LABEL, TIMEZONE } = require('./database/db');
+const { loadPublicUrl, publicUrl } = require('./utils/order-events');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -39,7 +40,8 @@ app.use('/api/stock', require('./routes/stock'));
 app.use('/api/members', require('./routes/members'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/payments', require('./routes/payments'));  // QR พร้อมเพย์ + ตรวจสลิป
-app.use('/api/line', require('./routes/line'));          // LINE Bot แจ้งเตือนเครื่องดื่มพร้อม
+app.use('/api/line', require('./routes/line'));          // LINE Bot แจ้งสถานะออเดอร์
+app.use('/api/track', require('./routes/track'));        // ลูกค้าติดตามออเดอร์แบบเรียลไทม์ (สาธารณะ)
 app.use('/api', require('./routes/settings'));      // /settings /users /promotions /expenses /shifts
 
 app.get('/api/health', async (req, res, next) => {
@@ -63,6 +65,8 @@ const FRONTEND = path.join(__dirname, '..', 'frontend');
 app.use(express.static(FRONTEND));
 // ไลบรารีอ่าน QR บนรูปสลิป (ใช้ฝั่งเบราว์เซอร์)
 app.get('/vendor/jsQR.js', (req, res) => res.sendFile(require.resolve('jsqr/dist/jsQR.js')));
+// หน้าติดตามออเดอร์ของลูกค้า (เปิดจากลิงก์ใน LINE)
+app.get('/track/:orderNo', (req, res) => res.sendFile(path.join(FRONTEND, 'track.html')));
 app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(FRONTEND, 'index.html')));
 
 // ---------------- Error handler ----------------
@@ -84,6 +88,7 @@ app.use((err, req, res, next) => {
 async function start() {
   try {
     await initSchema();
+    await loadPublicUrl();   // URL สาธารณะ (tunnel / โดเมน) ที่จำไว้ ใช้สร้างลิงก์ติดตามออเดอร์
   } catch (e) {
     console.error('\n❌ เชื่อมต่อ PostgreSQL ไม่สำเร็จ:', e.message);
     console.error('   ตรวจสอบว่า PostgreSQL ทำงานอยู่ และตั้งค่า DATABASE_URL / PG* ในไฟล์ .env แล้ว\n');
@@ -91,9 +96,10 @@ async function start() {
   }
 
   app.listen(PORT, () => {
-    console.log('\n☕  Espresso Flow — ระบบจัดการร้านกาแฟ');
+    console.log('\n🧋  ผู้ชายขายน้ำ — ระบบจัดการร้าน (Espresso Flow)');
     console.log(`    เซิร์ฟเวอร์: http://localhost:${PORT}`);
     console.log(`    ฐานข้อมูล : ${DB_LABEL}  (timezone ${TIMEZONE})`);
+    if (publicUrl()) console.log(`    URL สาธารณะ: ${publicUrl()}  (ลูกค้าเปิดลิงก์ติดตามออเดอร์ได้)`);
     console.log('    บัญชีทดสอบ: admin / admin123\n');
   });
 }

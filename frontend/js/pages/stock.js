@@ -6,7 +6,7 @@ import {
 } from '../utils.js';
 
 let tab = 'list';
-const filter = { q: '', status: '' };
+const filter = { q: '', status: '', category: '' };
 
 export default {
   async render(root) {
@@ -54,10 +54,16 @@ async function draw() {
 
 // ---------------------------------------------------------------
 async function drawList(box) {
-  const list = await api.ingredients(filter);
+  const [list, cats] = await Promise.all([api.ingredients(filter), api.get('/stock/categories')]);
   const canEdit = auth.can('owner', 'manager');
+  const total = cats.reduce((s, x) => s + x.count, 0);
 
   box.innerHTML = `
+    <div class="cat-bar ing-cats">
+      <button data-cat="" class="${filter.category ? '' : 'active'}">ทั้งหมด (${total})</button>
+      ${cats.map((x) => `<button data-cat="${esc(x.name)}" class="${filter.category === x.name ? 'active' : ''}">
+        ${esc(x.name)} (${x.count})${x.low ? ` <span class="low-dot" title="ใกล้หมด ${x.low} รายการ">${x.low}</span>` : ''}</button>`).join('')}
+    </div>
     <div class="card">
       <div class="card-head">
         <div class="search" style="width:280px"><input class="input" id="sQ" placeholder="ค้นหาวัตถุดิบ / ผู้ขาย" value="${esc(filter.q)}"></div>
@@ -73,22 +79,26 @@ async function drawList(box) {
       <div class="table-wrap">
         <table class="tbl">
           <thead><tr>
-            <th>รหัส</th><th>ชื่อวัตถุดิบ</th><th class="t-right">คงเหลือ</th><th class="t-right">ขั้นต่ำ</th>
-            <th style="width:130px">ระดับสต็อก</th><th class="t-right">ต้นทุน/หน่วย</th>
+            <th>รหัส</th><th>ชื่อวัตถุดิบ</th><th class="t-right">คงเหลือ</th><th class="t-right">ขั้นต่ำ / เต็ม</th>
+            <th style="width:150px">ระดับสต็อก</th><th class="t-right">ต้นทุน/หน่วย</th>
             <th class="t-right">มูลค่า</th><th>ผู้ขาย</th><th class="t-center">จัดการ</th>
           </tr></thead>
           <tbody>${list.length ? list.map((i) => {
-            const pct = Math.min(100, Math.round((i.stock_qty / (i.min_qty * 2 || 1)) * 100));
+            const pct = i.level_pct;
             const cls = { out: 'danger', low: 'warn' }[i.stock_status] || '';
+            const minMark = i.full_level > 0 ? Math.min(100, Math.round((i.min_qty / i.full_level) * 100)) : 0;
             const badge = { ok: '<span class="badge b-green">ปกติ</span>',
                             low: '<span class="badge b-amber">ใกล้หมด</span>',
                             out: '<span class="badge b-red">หมด</span>' }[i.stock_status];
             return `<tr>
               <td class="mono" style="color:var(--muted);font-size:12.5px">${esc(i.code || '-')}</td>
-              <td><b>${esc(i.name)}</b> ${badge}</td>
+              <td><b>${esc(i.name)}</b> ${badge}
+                ${i.category && !filter.category ? `<div style="font-size:11.5px;color:var(--muted)">${esc(i.category)}</div>` : ''}</td>
               <td class="t-right mono" style="font-weight:600">${num(i.stock_qty, 2)} <small style="color:var(--muted)">${esc(i.unit)}</small></td>
-              <td class="t-right mono" style="color:var(--muted)">${num(i.min_qty, 2)}</td>
-              <td><div class="progress ${cls}"><i style="width:${pct}%"></i></div></td>
+              <td class="t-right mono" style="color:var(--muted)">${num(i.min_qty, 2)} / ${num(i.full_level, 2)}</td>
+              <td><div class="level">
+                <div class="progress ${cls}" title="จุดสั่งซื้อ ${minMark}%"><i style="width:${pct}%"></i><b style="left:${minMark}%"></b></div>
+                <span>${pct}%</span></div></td>
               <td class="t-right mono">${baht2(i.cost_per_unit)}</td>
               <td class="t-right mono">${baht(i.stock_value)}</td>
               <td style="font-size:12.5px;color:var(--muted)">${esc(i.supplier || '-')}</td>
@@ -103,6 +113,7 @@ async function drawList(box) {
     </div>`;
 
   $('#sStatus').value = filter.status;
+  $$('.ing-cats button', box).forEach((b) => b.onclick = () => { filter.category = b.dataset.cat; draw(); });
   $('#sQ').oninput = (e) => { filter.q = e.target.value.trim(); clearTimeout(window._st); window._st = setTimeout(draw, 300); };
   $('#sStatus').onchange = (e) => { filter.status = e.target.value; draw(); };
   const add = $('#addIng'); if (add) add.onclick = () => ingredientForm(null);
@@ -172,17 +183,18 @@ async function drawMoves(box) {
 // ---------------------------------------------------------------
 async function drawAlerts(box) {
   const list = await api.stockAlerts();
+  const poTotal = list.reduce((s, i) => s + Math.max(Number(i.suggest_cost) || 0, 0), 0);
   box.innerHTML = `
     <div class="card">
       <div class="card-head">
         <div><h3>รายการที่ควรสั่งซื้อ</h3>
-          <div class="sub">วัตถุดิบที่คงเหลือต่ำกว่าหรือเท่ากับจุดสั่งซื้อ</div></div>
+          <div class="sub">วัตถุดิบที่ต่ำกว่าจุดสั่งซื้อ — แนะนำให้สั่งจนเต็มคลัง${list.length ? ` · ประมาณการ ${baht(poTotal)}` : ''}</div></div>
         <div class="spacer"></div>
         <button class="btn btn-sm" id="printPo">🖨️ พิมพ์ใบสั่งซื้อ</button>
       </div>
       <div class="table-wrap"><table class="tbl">
         <thead><tr><th>รหัส</th><th>วัตถุดิบ</th><th class="t-right">คงเหลือ</th>
-          <th class="t-right">จุดสั่งซื้อ</th><th class="t-right">แนะนำให้สั่ง</th><th>ผู้ขาย</th><th class="t-center"></th></tr></thead>
+          <th class="t-right">จุดสั่งซื้อ</th><th class="t-right">แนะนำให้สั่ง</th><th class="t-right">ประมาณการ</th><th>ผู้ขาย</th><th class="t-center"></th></tr></thead>
         <tbody>${list.length ? list.map((i) => `
           <tr>
             <td class="mono" style="color:var(--muted);font-size:12.5px">${esc(i.code || '-')}</td>
@@ -191,9 +203,10 @@ async function drawAlerts(box) {
               ${num(i.stock_qty, 2)} ${esc(i.unit)}</td>
             <td class="t-right mono">${num(i.min_qty, 2)}</td>
             <td class="t-right mono" style="font-weight:600">${num(Math.max(i.suggest_order, 0), 2)} ${esc(i.unit)}</td>
+            <td class="t-right mono">${baht(Math.max(i.suggest_cost, 0))}</td>
             <td style="font-size:12.5px;color:var(--muted)">${esc(i.supplier || '-')}</td>
             <td class="t-center"><button class="btn btn-sm btn-primary" data-move="${i.id}">รับเข้า</button></td>
-          </tr>`).join('') : `<tr><td colspan="7">${emptyHTML('สต็อกเพียงพอทุกรายการ 🎉', '✅')}</td></tr>`}</tbody>
+          </tr>`).join('') : `<tr><td colspan="8">${emptyHTML('สต็อกเพียงพอทุกรายการ 🎉', '✅')}</td></tr>`}</tbody>
       </table></div>
     </div>`;
 
@@ -266,8 +279,16 @@ function ingredientForm(ing) {
       <div class="grid g-2" style="gap:12px">
         <div class="field"><label>หน่วยนับ</label>
           <input class="input" id="iUnit" value="${esc(ing?.unit || 'กรัม')}" placeholder="กรัม / มล. / ใบ"></div>
+        <div class="field"><label>หมวด</label>
+          <input class="input" id="iCat" list="iCatList" value="${esc(ing?.category || '')}" placeholder="เช่น นม & ผลิตภัณฑ์นม">
+          <datalist id="iCatList"></datalist></div>
+      </div>
+      <div class="grid g-2" style="gap:12px">
         <div class="field"><label>จุดสั่งซื้อ (ขั้นต่ำ)</label>
           <input class="input" id="iMin" type="number" step="0.01" value="${ing?.min_qty ?? 0}"></div>
+        <div class="field"><label>ระดับเต็มคลัง</label>
+          <input class="input" id="iMax" type="number" step="0.01" value="${ing?.max_qty ?? 0}">
+          <div class="hint">ใช้คิดแถบระดับสต็อก และจำนวนแนะนำให้สั่ง</div></div>
       </div>
       <div class="grid g-2" style="gap:12px">
         ${isNew ? `<div class="field"><label>ยอดยกมาเริ่มต้น</label>
@@ -282,11 +303,17 @@ function ingredientForm(ing) {
              <button class="btn btn-primary" id="saveIng">บันทึก</button>`,
   });
 
+  api.get('/stock/categories').then((cats) => {
+    $('#iCatList', m.el).innerHTML = cats.map((x) => `<option value="${esc(x.name)}">`).join('');
+  }).catch(() => {});
+
   $('#saveIng', m.el).onclick = async () => {
     const body = {
       name: $('#iName', m.el).value.trim(),
       unit: $('#iUnit', m.el).value.trim(),
       min_qty: Number($('#iMin', m.el).value),
+      max_qty: Number($('#iMax', m.el).value),
+      category: $('#iCat', m.el).value.trim() || null,
       cost_per_unit: Number($('#iCost', m.el).value),
       supplier: $('#iSup', m.el).value.trim() || null,
     };

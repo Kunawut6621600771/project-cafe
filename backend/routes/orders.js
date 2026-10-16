@@ -5,7 +5,11 @@ const router = require('express').Router();
 const { db, tx } = require('../database/db');
 const { auth, requireRole } = require('../middleware/auth');
 const { wrap, getSetting, nextOrderNo, calcTier, round2 } = require('../utils/helpers');
-const { notifyReady } = require('./line');
+const { notifyStatus } = require('./line');
+const { emitOrderChanged } = require('../utils/order-events');
+
+/** ช่องทางชำระเงินที่ร้านเปิดรับ */
+const PAY_METHODS = ['cash', 'promptpay', 'transfer', 'wallet'];
 
 // ---------------------------------------------------------------
 // GET /api/orders  : ประวัติออเดอร์ (มีตัวกรอง + แบ่งหน้า)
@@ -73,12 +77,19 @@ router.get('/:id', auth, wrap(async (req, res) => {
   o.slip = await db.get(`SELECT trans_ref, provider, status, amount, sending_bank, sender_name, slip_time
                          FROM payment_slips WHERE order_id=?`, o.id) || null;
   o.shop = {
-    name: await getSetting('shop_name', 'Espresso Flow'),
+    name: await getSetting('shop_name', 'ผู้ชายขายน้ำ'),
     branch: await getSetting('shop_branch', ''),
     address: await getSetting('shop_address', ''),
     phone: await getSetting('shop_phone', ''),
     tax_id: await getSetting('shop_tax_id', ''),
     footer: await getSetting('receipt_footer', 'ขอบคุณที่ใช้บริการ'),
+    // ช่องทางติดตาม / ติดต่อ (แสดงท้ายใบเสร็จ)
+    line_id: await getSetting('shop_line_id', ''),
+    facebook: await getSetting('shop_facebook', ''),
+    instagram: await getSetting('shop_instagram', ''),
+    website: await getSetting('shop_website', ''),
+    open_time: await getSetting('open_time', ''),
+    close_time: await getSetting('close_time', ''),
   };
   res.json(o);
 }));
@@ -215,6 +226,8 @@ router.post('/', auth, wrap(async (req, res) => {
   const total = round2(subtotal - discount);
 
   const payment = b.payment_method || 'cash';
+  // ร้านไม่รับบัตรเครดิตแล้ว (ค่า 'card' ยังอยู่ในฐานข้อมูลเพื่อให้ออเดอร์เก่าแสดงผลได้)
+  if (!PAY_METHODS.includes(payment)) return res.status(400).json({ error: 'ช่องทางชำระเงินนี้ไม่รองรับ' });
   const received = payment === 'cash' ? round2(Number(b.received || total)) : total;
   if (payment === 'cash' && received < total) {
     return res.status(400).json({ error: 'จำนวนเงินที่รับมาน้อยกว่ายอดที่ต้องชำระ' });
@@ -294,7 +307,8 @@ router.patch('/:id/status', auth, wrap(async (req, res) => {
         o.total, o.shift_id);
     }
   });
-  const line = status === 'ready' ? await notifyReady(o.id) : false;
+  emitOrderChanged(o.id);                       // หน้าเว็บติดตามออเดอร์ของลูกค้าอัปเดตทันที
+  const line = status === o.status ? false : await notifyStatus(o.id);
   res.json({ ...(await db.get('SELECT * FROM orders WHERE id=?', o.id)), line_notified: line });
 }));
 
@@ -352,6 +366,8 @@ router.post('/:id/cancel', auth, requireRole('owner', 'manager'), wrap(async (re
       ` [ยกเลิก: ${req.body?.reason || 'ไม่ระบุเหตุผล'}]`, o.id);
   });
 
+  emitOrderChanged(o.id);
+  await notifyStatus(o.id);
   res.json({ message: 'ยกเลิกออเดอร์และคืนสต็อกเรียบร้อย' });
 }));
 

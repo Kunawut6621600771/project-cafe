@@ -3,9 +3,10 @@ import { api } from '../api.js';
 import { refreshQueueBadge } from '../app.js';
 import {
   $, $$, esc, baht, baht2, num, toast, modal, emptyHTML, productThumb, isImgUrl,
-  ORDER_TYPE, PAYMENT, PAYMENT_ICON, fmtDateTime,
+  ORDER_TYPE, PAYMENT, PAYMENT_ICON, PAY_METHODS,
 } from '../utils.js';
 import { readSlip } from '../slip.js';
+import { showReceipt } from '../receipt.js';
 
 let nextUid = 1;      // รหัสบรรทัดในตะกร้า (ใช้แยกบรรทัดเท่านั้น)
 const cart = {
@@ -141,12 +142,26 @@ function filtered() {
     (!keyword || p.name.toLowerCase().includes(keyword.toLowerCase())));
 }
 
+/** วัตถุดิบหมด (ทำไม่ได้แม้แต่ 1 แก้ว) → ขายไม่ได้ */
+const soldOut = (p) => !p.is_available || p.can_make === 0;
+const LOW_MAKE = 10;
+
+/** ดึงจำนวนที่ทำได้ใหม่หลังขาย (สต็อกถูกตัดตามสูตรแล้ว) */
+async function refreshStock() {
+  try {
+    products = await api.products({ available: 1 });
+    renderMenu();
+  } catch { /* ไม่เป็นไร รอบหน้าค่อยโหลดใหม่ */ }
+}
+
 function renderMenu() {
   const list = filtered();
   $('#menuCount').textContent = `${list.length} เมนู`;
   $('#menuGrid').innerHTML = list.length ? list.map((p) => `
-    <div class="menu-item ${p.is_available ? '' : 'off'}" data-id="${p.id}">
+    <div class="menu-item ${soldOut(p) ? 'off' : ''}" data-id="${p.id}"
+         ${p.can_make === 0 && p.is_available ? 'data-why="วัตถุดิบหมด"' : ''}>
       ${p.is_recommended ? '<span class="tag-rec">แนะนำ</span>' : ''}
+      ${p.can_make > 0 && p.can_make <= LOW_MAKE ? `<span class="tag-left">เหลือ ${p.can_make}</span>` : ''}
       <div class="thumb">${productThumb(p.image, p.name)}</div>
       <div class="info">
         <div class="nm">${esc(p.name)}</div>
@@ -222,7 +237,12 @@ function addToCart(product, qty, options, note) {
   if (found) found.qty += qty;
   else cart.items.push({ uid: nextUid++, product, qty, options, note, sig });
   renderCart();
-  toast(`เพิ่ม ${product.name} แล้ว`, 'ok');
+  const inCart = cart.items.filter((i) => i.product.id === product.id).reduce((s, i) => s + i.qty, 0);
+  if (product.can_make != null && inCart > product.can_make) {
+    toast(`⚠️ วัตถุดิบพอทำ ${product.name} ได้อีกแค่ ${product.can_make} ที่ — ตรวจสต็อกก่อนรับออเดอร์`, 'warn');
+  } else {
+    toast(`เพิ่ม ${product.name} แล้ว`, 'ok');
+  }
 }
 
 // ---------------------------------------------------------------
@@ -322,7 +342,7 @@ function memberDialog() {
 function showMemberResults(m, list) {
   $('#mResult', m.el).innerHTML = list.length ? list.map((x) => `
     <div class="rank-row" style="cursor:pointer" data-id="${x.id}">
-      <div class="rank-no" style="background:var(--green-100);color:var(--green-800)">${esc(x.name.charAt(0))}</div>
+      <div class="rank-no" style="background:var(--brand-100);color:var(--brand-800)">${esc(x.name.charAt(0))}</div>
       <div style="flex:1"><b>${esc(x.name)}</b>
         <div style="font-size:12px;color:var(--muted)">${esc(x.phone || '-')} · ${esc(x.code)}</div></div>
       <div style="text-align:right"><b>${num(x.points)}</b><div style="font-size:11px;color:var(--muted)">แต้ม</div></div>
@@ -400,17 +420,17 @@ async function payDialog() {
     body: `
       <div class="pay-layout">
         <div>
-          <div style="text-align:center;padding:14px;background:var(--green-50);border-radius:12px;margin-bottom:18px">
+          <div style="text-align:center;padding:14px;background:var(--brand-50);border-radius:12px;margin-bottom:18px">
             <div style="color:var(--muted);font-size:13px">ยอดที่ต้องชำระ</div>
-            <div style="font-size:34px;font-weight:700;color:var(--green-800)" id="dueBig">${baht2(t.total)}</div>
+            <div style="font-size:34px;font-weight:700;color:var(--brand-800)" id="dueBig">${baht2(t.total)}</div>
             ${t.discount ? `<div style="font-size:12px;color:var(--red)">ประหยัดไป ${baht(t.discount)}</div>` : ''}
           </div>
 
           <div class="field"><label>ช่องทางชำระเงิน</label>
             <div class="pay-methods">
-              ${Object.entries(PAYMENT).map(([k, v], i) => `
+              ${PAY_METHODS.map((k, i) => `
                 <label><input type="radio" name="pay" value="${k}" ${i === 0 ? 'checked' : ''}>
-                  <span class="em">${PAYMENT_ICON[k]}</span>${v}</label>`).join('')}
+                  <span class="em">${PAYMENT_ICON[k]}</span>${PAYMENT[k]}</label>`).join('')}
             </div>
           </div>
 
@@ -488,9 +508,18 @@ async function payDialog() {
     const amount = due();
     if (qrFor === amount) return;
     qrFor = amount;
+    // ไม่ได้ตั้งเลขพร้อมเพย์ แต่มีรูป QR ของร้าน (อัปโหลดในหน้าตั้งค่า) : ลูกค้าสแกนแล้วกรอกยอดเอง
+    // ถ้าตั้งเลขพร้อมเพย์ไว้ จะใช้ QR ล็อกยอดด้านล่างแทน (ลูกค้าไม่ต้องพิมพ์ยอด)
+    if (!payCfg.promptpay_ready && payCfg.qr_image) {
+      box.innerHTML = staticQrHTML(payCfg.qr_image, amount);
+      const full = () => showStaticQrFullscreen(payCfg.qr_image, amount);
+      $('#ppQr', m.el).onclick = full;
+      $('#ppFull', m.el).onclick = full;
+      return;
+    }
     if (!payCfg.promptpay_ready) {
-      box.innerHTML = `<div class="slip-card warn">⚠️ ยังไม่ได้ตั้งเลขพร้อมเพย์ของร้าน<br>
-        <small>ไปที่ ตั้งค่า → ข้อมูลร้าน → รับชำระเงิน</small></div>`;
+      box.innerHTML = `<div class="slip-card warn">⚠️ ยังไม่ได้ตั้ง QR รับเงินของร้าน<br>
+        <small>ไปที่ ตั้งค่า → ข้อมูลร้าน → รับชำระเงิน แล้วอัปโหลดรูป QR หรือใส่เลขพร้อมเพย์</small></div>`;
       return;
     }
     box.innerHTML = '<div class="loading"><div class="spinner"></div>กำลังสร้าง QR...</div>';
@@ -641,12 +670,36 @@ async function payDialog() {
       refreshQueueBadge();
       toast(`บันทึกออเดอร์ ${order.order_no} เรียบร้อย`, 'ok');
       showReceipt(order.id);
+      refreshStock();
     } catch (e) {
       toast(e.message, 'err');
       btn.disabled = false; refreshConfirm();
     }
   });
   calcChange();
+}
+
+/** การ์ด QR รูปของร้าน + ยอดที่ลูกค้าต้องกรอก */
+function staticQrHTML(img, amount) {
+  return `
+    <div class="pp-card pp-static">
+      <img src="${img}" alt="QR รับเงินของร้าน" class="pp-img" id="ppQr" title="คลิกเพื่อขยายให้ลูกค้าสแกน">
+      <div class="pp-due"><small>ยอดที่ลูกค้าต้องกรอก</small><b>${baht2(amount)}</b></div>
+      <button type="button" class="btn btn-sm" id="ppFull">🔍 ขยายให้ลูกค้าสแกน</button>
+    </div>`;
+}
+
+function showStaticQrFullscreen(img, amount) {
+  const el = document.createElement('div');
+  el.className = 'qr-full';
+  el.innerHTML = `
+    <div class="pp-card big pp-static">
+      <img src="${img}" alt="QR รับเงินของร้าน" class="pp-img">
+      <div class="pp-due"><small>กรุณากรอกยอดโอน</small><b>${baht2(amount)}</b></div>
+      <div class="pp-hint">สแกนด้วยแอปธนาคารใดก็ได้ · แตะเพื่อปิด</div>
+    </div>`;
+  el.onclick = () => el.remove();
+  document.body.appendChild(el);
 }
 
 /** QR เต็มจอสำหรับหันจอให้ลูกค้าสแกน */
@@ -665,61 +718,3 @@ function showQrFullscreen(q) {
   document.body.appendChild(el);
 }
 
-// ---------------------------------------------------------------
-const receiptSub = (text) => `<div style="color:#666;font-size:11px;padding-left:8px">└ ${esc(text)}</div>`;
-
-function receiptItem(i) {
-  return `
-        <div class="li"><span>${esc(i.product_name)} x${i.qty}</span><span>${baht2(i.line_total)}</span></div>
-        ${i.options_text ? receiptSub(i.options_text) : ''}
-        ${i.note ? receiptSub(i.note) : ''}`;
-}
-
-export async function showReceipt(orderId) {
-  const o = await api.order(orderId);
-  const m = modal({
-    title: 'ใบเสร็จรับเงิน',
-    body: `<div class="receipt" id="receiptPrint">
-      <div class="c"><b style="font-size:15px">${esc(o.shop.name)}</b><br>
-        ${esc(o.shop.branch || '')}<br>${esc(o.shop.address || '')}<br>
-        โทร. ${esc(o.shop.phone || '-')}${o.shop.tax_id ? `<br>เลขประจำตัวผู้เสียภาษี ${esc(o.shop.tax_id)}` : ''}</div>
-      <hr>
-      <div class="li"><span>เลขที่</span><span>${esc(o.order_no)}</span></div>
-      <div class="li"><span>วันที่</span><span>${fmtDateTime(o.created_at)}</span></div>
-      <div class="li"><span>พนักงาน</span><span>${esc(o.cashier || '-')}</span></div>
-      <div class="li"><span>ประเภท</span><span>${ORDER_TYPE[o.order_type]}${o.table_no ? ` (โต๊ะ ${esc(o.table_no)})` : ''}</span></div>
-      ${o.member_name ? `<div class="li"><span>สมาชิก</span><span>${esc(o.member_name)}</span></div>` : ''}
-      <hr>
-      ${o.items.map(receiptItem).join('')}
-      <hr>
-      <div class="li"><span>ยอดรวม</span><span>${baht2(o.subtotal)}</span></div>
-      ${o.discount ? `<div class="li"><span>ส่วนลด</span><span>-${baht2(o.discount)}</span></div>` : ''}
-      <div class="li" style="font-weight:700;font-size:15px"><span>ยอดสุทธิ</span><span>${baht2(o.total)}</span></div>
-      <div class="li"><span>ชำระโดย</span><span>${PAYMENT[o.payment_method] || '-'}</span></div>
-      ${o.slip ? `<div class="li"><span>อ้างอิงสลิป</span><span>${esc(o.slip.trans_ref)}</span></div>` : ''}
-      ${o.payment_method === 'cash' ? `
-        <div class="li"><span>รับเงิน</span><span>${baht2(o.received)}</span></div>
-        <div class="li"><span>เงินทอน</span><span>${baht2(o.change_amount)}</span></div>` : ''}
-      ${o.points_earned ? `<div class="li"><span>แต้มที่ได้รับ</span><span>+${o.points_earned} แต้ม</span></div>` : ''}
-      <hr>
-      <div id="lineBox"></div>
-      <div class="c">${esc(o.shop.footer || 'ขอบคุณที่ใช้บริการ')}</div>
-    </div>`,
-    footer: `<button class="btn" data-close>ปิด</button>
-             <button class="btn btn-primary" id="printBtn">🖨️ พิมพ์ใบเสร็จ</button>`,
-  });
-  $('#printBtn', m.el).addEventListener('click', () => window.print());
-
-  // QR รับแจ้งเตือนทาง LINE เมื่อเครื่องดื่มพร้อม (เฉพาะออเดอร์ที่ยังอยู่ในคิว)
-  try {
-    const l = await api.orderLineLink(o.id);
-    if (!l.enabled) return;
-    $('#lineBox', m.el).innerHTML = `
-      <div class="line-rcpt">
-        <img src="${l.qr}" alt="QR LINE">
-        <div><b>รับแจ้งเตือนทาง LINE</b><br>สแกน QR แล้วกดส่งข้อความ
-          บอท <b>${esc(l.bot_name)}</b> จะแจ้งทันทีเมื่อเครื่องดื่มพร้อม
-          ${l.linked ? '<br><span style="color:#06c755">✓ ผูก LINE กับออเดอร์นี้แล้ว</span>' : ''}</div>
-      </div><hr>`;
-  } catch { /* ไม่มี LINE ก็แสดงใบเสร็จตามปกติ */ }
-}
