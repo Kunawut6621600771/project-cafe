@@ -67,11 +67,11 @@ export const ORDER_STATUS = {
   completed: { label: 'สำเร็จ',    cls: 'b-green' },
   cancelled: { label: 'ยกเลิก',    cls: 'b-red' },
 };
-export const ORDER_TYPE = { dine_in: 'ทานที่ร้าน', takeaway: 'กลับบ้าน', delivery: 'เดลิเวอรี่' };
-export const PAYMENT = { cash: 'เงินสด', promptpay: 'พร้อมเพย์', card: 'บัตรเครดิต', transfer: 'โอนเงิน', wallet: 'วอลเล็ต' };
-export const PAYMENT_ICON = { cash: '💵', promptpay: '📱', card: '💳', transfer: '🏦', wallet: '👛' };
+export const ORDER_TYPE = { dine_in: 'ทานที่ร้าน', takeaway: 'กลับบ้าน' };
+export const PAYMENT = { cash: 'เงินสด', promptpay: 'พร้อมเพย์', card: 'บัตรเครดิต' };
+export const PAYMENT_ICON = { cash: '💵', promptpay: '📱', card: '💳' };
 /** ช่องทางที่เปิดรับตอนขาย (ไม่รับบัตรเครดิต — card เก็บไว้แสดงออเดอร์เก่าเท่านั้น) */
-export const PAY_METHODS = ['cash', 'promptpay', 'transfer', 'wallet'];
+export const PAY_METHODS = ['cash', 'promptpay'];
 export const TIER = {
   silver:   { label: 'Silver',   cls: 'b-gray' },
   gold:     { label: 'Gold',     cls: 'b-amber' },
@@ -196,15 +196,15 @@ export function lineChart(data, { height = 190, format = baht } = {}) {
 
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
     <defs><linearGradient id="gGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#b8722f" stop-opacity=".3"/>
-      <stop offset="100%" stop-color="#b8722f" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#e5262e" stop-opacity=".3"/>
+      <stop offset="100%" stop-color="#e5262e" stop-opacity="0"/>
     </linearGradient></defs>
     ${grid}<path class="area" d="${area}"/><polyline class="line" points="${pts}"/>${dots}${labels}</svg>`;
 }
 
 /** โดนัท : data = [{label, value}] */
 export function donutChart(data, { size = 168 } = {}) {
-  const colors = ['#b8722f', '#5a341c', '#e0a463', '#2f8f6b', '#d9614c', '#4c7a99', '#a8758c', '#8c8a5c'];
+  const colors = ['#d4141c', '#18181b', '#f87171', '#71717a', '#9f1218', '#a1a1aa', '#fca5a5', '#3f3f46'];
   const total = data.reduce((s, d) => s + d.value, 0);
   if (!total) return '<div class="empty">ยังไม่มีข้อมูล</div>';
   const R = size / 2, r = R * 0.62;

@@ -193,7 +193,7 @@ CREATE TABLE IF NOT EXISTS shifts (
 CREATE TABLE IF NOT EXISTS orders (
   id             SERIAL PRIMARY KEY,
   order_no       TEXT NOT NULL UNIQUE,
-  order_type     TEXT NOT NULL DEFAULT 'takeaway' CHECK (order_type IN ('dine_in','takeaway','delivery')),
+  order_type     TEXT NOT NULL DEFAULT 'takeaway' CHECK (order_type IN ('dine_in','takeaway')),
   table_no       TEXT,
   member_id      INTEGER REFERENCES members(id) ON DELETE SET NULL,
   user_id        INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -203,7 +203,7 @@ CREATE TABLE IF NOT EXISTS orders (
   promotion_id   INTEGER REFERENCES promotions(id) ON DELETE SET NULL,
   total          DOUBLE PRECISION NOT NULL DEFAULT 0,
   cost_total     DOUBLE PRECISION NOT NULL DEFAULT 0,
-  payment_method TEXT CHECK (payment_method IN ('cash','promptpay','card','transfer','wallet')),
+  payment_method TEXT CHECK (payment_method IN ('cash','promptpay')),
   received       DOUBLE PRECISION NOT NULL DEFAULT 0,
   change_amount  DOUBLE PRECISION NOT NULL DEFAULT 0,
   points_earned  INTEGER NOT NULL DEFAULT 0,
@@ -222,6 +222,14 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_user_id     TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_notified_at TIMESTAMP;
 -- สถานะล่าสุดที่แจ้งลูกค้าทาง LINE แล้ว (กันส่งซ้ำ)
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_last_status TEXT;
+-- ร้านรับแค่เงินสด/พร้อมเพย์ และทานที่ร้าน/กลับบ้าน — อัปเดต CHECK ของฐานข้อมูลเดิมให้ตรงกัน
+-- NOT VALID: บังคับเฉพาะแถวใหม่ ออเดอร์เก่าที่เป็น card/transfer/wallet/delivery ยังอยู่ได้
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_payment_method_check;
+ALTER TABLE orders ADD  CONSTRAINT orders_payment_method_check
+  CHECK (payment_method IN ('cash','promptpay')) NOT VALID;
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_order_type_check;
+ALTER TABLE orders ADD  CONSTRAINT orders_order_type_check
+  CHECK (order_type IN ('dine_in','takeaway')) NOT VALID;
 
 CREATE TABLE IF NOT EXISTS order_items (
   id            SERIAL PRIMARY KEY,

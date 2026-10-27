@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#2b1a0f">
+  <meta name="theme-color" content="#000000">
   <title>ติดตามออเดอร์ — ผู้ชายขายน้ำ</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥤</text></svg>">
+  <link rel="icon" type="image/jpeg" href="/assets/brand/icon.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Mitr:wght@500;600&family=Charm:wght@700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --espresso: #2b1a0f; --cream: #fbf6ee; --latte: #e8c9a0; --muted: #8a7766; --line: #eadfce;
-      --green: #16a34a; --green-d: #166534; --amber: #c27a3a; --red: #b91c1c; --blue: #1e3a8a;
+      --espresso: #0d0d0e; --cream: #f4f4f5; --latte: #f87171; --muted: #71717a; --line: #e4e4e7;
+      --green: #16a34a; --green-d: #166534; --amber: #d4141c; --red: #b91c1c; --blue: #1e3a8a;
       --accent: var(--amber);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -23,10 +23,12 @@
     .hero {
       position: relative; color: #fff; text-align: center; padding: 26px 20px 86px; overflow: hidden;
       background:
-        linear-gradient(180deg, rgba(28,17,10,.55), rgba(28,17,10,.85)),
-        url('/assets/bg/login-barista.jpg') center / cover no-repeat, var(--espresso);
+        linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.7)),
+        url('/assets/brand/brush.svg') center / cover no-repeat, #000;
     }
+    .hero .logo { display: block; width: 210px; max-width: 70%; height: auto; margin: 0 auto 2px; }
     .hero .shop { font-family: 'Mitr', 'Noto Sans Thai', sans-serif; font-size: 20px; letter-spacing: .01em; }
+    .hero .logo + .shop { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
     .hero .sub { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--latte); margin-top: 2px; }
     .live {
       display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; font-size: 12px;
@@ -39,7 +41,7 @@
     .wrap { max-width: 480px; margin: -64px auto 0; padding: 0 16px 32px; position: relative; }
     .card {
       background: #fff; border-radius: 22px; border: 1px solid var(--line);
-      box-shadow: 0 18px 40px rgba(60,35,15,.14); overflow: hidden; margin-bottom: 14px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.12); overflow: hidden; margin-bottom: 14px;
       animation: rise .6s cubic-bezier(.2,.8,.2,1) both;
     }
     .card + .card { animation-delay: .1s; }
@@ -61,7 +63,7 @@
     .steam { position: absolute; top: 2px; left: 50%; width: 60px; margin-left: -30px; height: 40px; display: none; }
     .st-preparing .steam { display: block; }
     .steam span {
-      position: absolute; bottom: 0; width: 5px; height: 22px; border-radius: 5px; background: rgba(150,120,90,.45);
+      position: absolute; bottom: 0; width: 5px; height: 22px; border-radius: 5px; background: rgba(160,160,170,.45);
       filter: blur(1px); opacity: 0; animation: steam 2.4s ease-in-out infinite;
     }
     .steam span:nth-child(1) { left: 14px; } .steam span:nth-child(2) { left: 28px; animation-delay: .8s; } .steam span:nth-child(3) { left: 42px; animation-delay: 1.6s; }
@@ -102,7 +104,7 @@
     .total { display: flex; justify-content: space-between; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--line); font-weight: 700; }
 
     .meta { text-align: center; font-size: 12px; color: var(--muted); }
-    .meta .quote { font-family: 'Charm', cursive; font-size: 18px; color: #a08a72; margin-top: 8px; }
+    .meta .quote { font-family: 'Charm', cursive; font-size: 18px; color: #a1a1aa; margin-top: 8px; }
     .error { text-align: center; padding: 40px 20px; }
     .error .em { font-size: 48px; }
 
@@ -120,6 +122,7 @@
 </head>
 <body>
   <header class="hero">
+    <img class="logo" src="/assets/brand/logo.jpg" alt="ผู้ชายขายน้ำ">
     <div class="shop" id="shop">ผู้ชายขายน้ำ</div>
     <div class="sub">Order Tracking</div>
     <div class="live" id="live"><i></i><span>กำลังเชื่อมต่อ...</span></div>

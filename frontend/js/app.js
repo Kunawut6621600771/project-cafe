@@ -1,4 +1,4 @@
-/** Espresso Flow — โครงหลักของแอป (router + layout) */
+/** ผู้ชายขายน้ำ — โครงหลักของแอป (router + layout) */
 import { api, auth } from './api.js';
 import { $, $$, toast, esc } from './utils.js';
 import { initFx, initLoginFx, shakeLogin, pageEnter } from './fx.js';
@@ -29,11 +29,6 @@ const state = { route: 'dashboard', queueCount: 0 };
 function bindLogin() {
   const form = $('#loginForm');
   const err = $('#loginError');
-
-  $$('.demo-users button').forEach((b) => b.addEventListener('click', () => {
-    $('#username').value = b.dataset.u;
-    $('#password').value = b.dataset.p;
-  }));
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();

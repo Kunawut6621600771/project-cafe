@@ -156,12 +156,12 @@ async function drawShop(box) {
         <div class="card-head"><h3>ช่องทางติดตาม & ติดต่อ</h3><div class="sub">แสดงท้ายใบเสร็จ (เว้นว่างได้)</div></div>
         <div class="card-body">
           <div class="grid g-2" style="gap:12px">
-            ${f('shop_line_id', 'LINE Official Account', s.shop_line_id, 'เช่น @espressoflow — เว้นว่างจะใช้ ID ของบอท LINE อัตโนมัติ')}
+            ${f('shop_line_id', 'LINE Official Account', s.shop_line_id, 'เช่น @phuchaikhainam — เว้นว่างจะใช้ ID ของบอท LINE อัตโนมัติ')}
             ${f('shop_facebook', 'Facebook Page', s.shop_facebook, 'ชื่อเพจ หรือลิงก์เพจ')}
           </div>
           <div class="grid g-2" style="gap:12px">
-            ${f('shop_instagram', 'Instagram', s.shop_instagram, 'เช่น espressoflow.cafe')}
-            ${f('shop_website', 'เว็บไซต์', s.shop_website, 'เช่น www.espressoflow.cafe')}
+            ${f('shop_instagram', 'Instagram', s.shop_instagram, 'เช่น phuchaikhainam')}
+            ${f('shop_website', 'เว็บไซต์', s.shop_website, 'เช่น www.phuchaikhainam.com')}
           </div>
         </div>
       </div>
@@ -185,7 +185,7 @@ async function drawShop(box) {
           </div>
           ${f('promptpay_id', 'เลขพร้อมเพย์ของร้าน (QR ล็อกยอด)', s.promptpay_id,
             'เบอร์มือถือ 10 หลัก หรือเลข 13 หลัก — ระบบสร้าง QR ที่ล็อกยอดให้ทุกบิล (ใช้ก่อนรูป QR ด้านบน)')}
-          ${f('promptpay_name', 'ชื่อบัญชีที่แสดงใต้ QR', s.promptpay_name, 'เช่น ร้าน Espresso Flow (นายสมชาย ใจดี)')}
+          ${f('promptpay_name', 'ชื่อบัญชีที่แสดงใต้ QR', s.promptpay_name, 'เช่น ร้านผู้ชายขายน้ำ (นายสมชาย ใจดี)')}
           <div class="field"><label>ตรวจสลิปก่อนปิดบิล</label>
             <select class="input" id="require_slip" ${dis}>
               <option value="1" ${s.require_slip !== '0' ? 'selected' : ''}>บังคับ — พร้อมเพย์/โอนเงินต้องแนบสลิปที่ตรวจผ่าน</option>

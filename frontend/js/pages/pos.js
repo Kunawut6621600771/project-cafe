@@ -457,6 +457,11 @@ async function payDialog() {
 
         <div id="qrPane" class="qr-pane" style="display:none">
           <div id="qrBox"></div>
+          ${payCfg.require_slip ? '' : `
+            <div style="font-size:13px;color:var(--muted);margin:10px 0 6px">
+              เช็กยอดเงินเข้าในแอปธนาคาร แล้วกดยืนยันได้เลย</div>
+            <button type="button" class="btn btn-sm" id="slipShow">🧾 แนบสลิป (ไม่บังคับ)</button>`}
+          <div id="slipSec" ${payCfg.require_slip ? '' : 'style="display:none"'}>
           <div class="slip-head">
             <b>ตรวจสลิปโอนเงิน</b>
             <span class="badge ${payCfg.slip_provider ? 'b-green' : 'b-amber'}">
@@ -469,6 +474,7 @@ async function payDialog() {
             <small>คลิกเพื่อเลือก · ลากไฟล์มาวาง · หรือกด Ctrl+V</small>
           </label>
           <div id="slipResult"></div>
+          </div>
         </div>
       </div>`,
     footer: `<button class="btn" data-close>ยกเลิก</button>
@@ -478,7 +484,7 @@ async function payDialog() {
 
   const recv = $('#received', m.el);
   const method = () => $('input[name="pay"]:checked', m.el).value;
-  const isTransfer = () => ['promptpay', 'transfer'].includes(method());
+  const isTransfer = () => method() === 'promptpay';
   const due = () => Math.max(0, t.total - Number($('#usePoints', m.el)?.value || 0));
 
   let slip = null;          // สลิปที่ตรวจผ่านแล้ว { id, ... }
@@ -623,6 +629,9 @@ async function payDialog() {
     if (f) { e.preventDefault(); onSlipFile(f); }
   }
   document.addEventListener('paste', onPaste);
+
+  const slipShow = $('#slipShow', m.el);
+  if (slipShow) slipShow.onclick = () => { $('#slipSec', m.el).style.display = 'block'; slipShow.remove(); };
 
   const drop = $('#slipDrop', m.el);
   $('#slipFile', m.el).onchange = (e) => { onSlipFile(e.target.files[0]); e.target.value = ''; };

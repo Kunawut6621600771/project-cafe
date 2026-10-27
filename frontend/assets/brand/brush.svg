@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
+  <!-- ลายพู่กันแดงสไตล์โลโก้ "ผู้ชายขายน้ำ X2" ใช้เป็นพื้นหลังตกแต่ง -->
+  <defs>
+    <filter id="rough" x="-10%" y="-30%" width="120%" height="160%">
+      <feTurbulence type="fractalNoise" baseFrequency=".035 .5" numOctaves="2" seed="7"/>
+      <feDisplacementMap in="SourceGraphic" scale="14"/>
+    </filter>
+  </defs>
+  <g fill="#e11d24" filter="url(#rough)">
+    <path d="M-40 470 C 160 430, 420 400, 860 330 L 860 352 C 470 418, 200 458, -40 500 Z" opacity=".9"/>
+    <path d="M60 520 C 260 498, 520 470, 760 440 L 752 452 C 520 486, 280 514, 70 534 Z" opacity=".6"/>
+    <path d="M520 90 C 600 70, 700 54, 860 40 L 860 56 C 720 70, 620 88, 528 108 Z" opacity=".55"/>
+    <path d="M-30 150 C 60 136, 140 128, 230 124 L 226 134 C 140 140, 60 150, -30 166 Z" opacity=".4"/>
+  </g>
+  <g fill="#e11d24">
+    <circle cx="690" cy="300" r="7" opacity=".8"/>
+    <circle cx="718" cy="282" r="3.5" opacity=".7"/>
+    <circle cx="96" cy="430" r="5" opacity=".7"/>
+    <circle cx="124" cy="446" r="2.5" opacity=".6"/>
+    <circle cx="610" cy="130" r="4" opacity=".5"/>
+  </g>
+</svg>

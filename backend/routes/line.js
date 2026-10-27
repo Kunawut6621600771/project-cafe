@@ -227,7 +227,6 @@ router.get('/order-link/:id', auth, wrap(async (req, res) => {
     url,
     track_url: track,
     qr: await qrData(url),
-    track_qr: track ? await qrData(track) : null,
     bot_name: bot.displayName,
     basic_id: bot.basicId,
   });

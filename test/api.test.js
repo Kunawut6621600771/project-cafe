@@ -78,9 +78,15 @@ describe('POST /api/orders', () => {
     assert.equal(r.status, 400);
   });
 
-  test('ไม่รับบัตรเครดิต และช่องทางที่ไม่รู้จัก', async () => {
-    assert.equal((await order({ payment_method: 'card' })).status, 400);
-    assert.equal((await order({ payment_method: 'bitcoin' })).status, 400);
+  test('รับเฉพาะเงินสด/พร้อมเพย์ — ไม่รับบัตร โอนเงิน วอลเล็ต และช่องทางที่ไม่รู้จัก', async () => {
+    for (const m of ['card', 'transfer', 'wallet', 'bitcoin']) {
+      assert.equal((await order({ payment_method: m })).status, 400, m);
+    }
+  });
+
+  test('ไม่รับออเดอร์เดลิเวอรี่', async () => {
+    assert.equal((await order({ order_type: 'delivery' })).status, 400);
+    assert.equal((await order({ order_type: 'dine_in', table_no: 'A1' })).status, 201);
   });
 
   test('รูป QR รับเงินของร้านส่งไปให้หน้าขายผ่าน /payments/config', async () => {
@@ -203,7 +209,7 @@ describe('POST /api/orders', () => {
       await setSettings({ require_slip: '1' });
       assert.equal((await order({ payment_method: 'promptpay' })).status, 400);
       await setSettings({ require_slip: '0' });
-      assert.equal((await order({ payment_method: 'transfer' })).status, 201);
+      assert.equal((await order({ payment_method: 'promptpay' })).status, 201);
       await setSettings({ require_slip: '1' });
     });
 

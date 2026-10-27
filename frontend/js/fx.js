@@ -1,4 +1,4 @@
-/** Espresso Flow — ลูกเล่นหน้าจอ (แอนิเมชัน / เอฟเฟกต์) ไม่ยุ่งกับข้อมูล */
+/** ผู้ชายขายน้ำ — ลูกเล่นหน้าจอ (แอนิเมชัน / เอฟเฟกต์) ไม่ยุ่งกับข้อมูล */
 import { $, $$ } from './utils.js';
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -37,10 +37,6 @@ export function initLoginFx() {
     eye.setAttribute('aria-label', show ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน');
   });
 
-  $$('.demo-users button').forEach((b) => b.addEventListener('click', () => {
-    $$('.demo-users button').forEach((x) => x.classList.toggle('picked', x === b));
-  }));
-
   // เมาส์ขยับ → การ์ดเอียงตามเล็กน้อย (parallax)
   const card = $('.login-card');
   const wrap = $('#loginView');
@@ -69,7 +65,7 @@ export function shakeLogin() {
 /** คลื่นวงกลมตอนคลิกปุ่ม */
 function bindRipple() {
   document.addEventListener('pointerdown', (e) => {
-    const btn = e.target.closest('.btn, .demo-users button, .cat-bar button');
+    const btn = e.target.closest('.btn, .cat-bar button');
     if (!btn || btn.disabled || reduced()) return;
     const r = btn.getBoundingClientRect();
     const size = Math.max(r.width, r.height);

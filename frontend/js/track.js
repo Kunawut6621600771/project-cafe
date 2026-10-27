@@ -16,7 +16,7 @@ const STEPS = [
 ];
 
 const VIEW = {
-  pending:   { art: '🧾', title: 'รับออเดอร์แล้ว',            desc: 'ออเดอร์ของคุณอยู่ในคิว บาริสต้าจะเริ่มทำเร็ว ๆ นี้', accent: '#8a5a2b' },
+  pending:   { art: '🧾', title: 'รับออเดอร์แล้ว',            desc: 'ออเดอร์ของคุณอยู่ในคิว บาริสต้าจะเริ่มทำเร็ว ๆ นี้', accent: '#d4141c' },
   preparing: { art: '☕', title: 'กำลังชงเครื่องดื่มของคุณ',   desc: 'บาริสต้ากำลังตั้งใจทำให้อยู่ อีกสักครู่นะคะ',      accent: '#d97706' },
   ready:     { art: '🔔', title: 'พร้อมแล้ว!',                desc: '',                                                accent: '#16a34a' },
   completed: { art: '✅', title: 'ขอบคุณที่อุดหนุนค่ะ',        desc: 'ออเดอร์นี้รับไปเรียบร้อยแล้ว แล้วพบกันใหม่นะคะ',  accent: '#1e3a8a' },
@@ -43,7 +43,7 @@ function renderSteps(status) {
 function confetti() {
   const box = document.createElement('div');
   box.className = 'confetti';
-  const colors = ['#b8722f', '#e0a463', '#f6e3cb', '#5a341c', '#4ade80', '#fbbf24'];
+  const colors = ['#e5262e', '#ffffff', '#f87171', '#18181b', '#4ade80', '#fbbf24'];
   for (let i = 0; i < 70; i++) {
     const c = document.createElement('i');
     c.style.cssText = `left:${Math.random() * 100}%;background:${colors[i % colors.length]};`

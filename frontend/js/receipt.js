@@ -5,16 +5,7 @@ import { $, esc, baht2, modal, ORDER_TYPE, PAYMENT, fmtDateTime } from './utils.
 // ---------------------------------------------------------------
 // ไอคอน (SVG ในตัว พิมพ์ออกได้แม้ปิด "พิมพ์พื้นหลัง")
 // ---------------------------------------------------------------
-const LOGO = `<svg viewBox="0 0 64 64" aria-hidden="true">
-  <circle cx="32" cy="32" r="31" fill="#2b1a0f"/>
-  <circle cx="32" cy="32" r="27" fill="none" stroke="#e8c9a0" stroke-width="1.2" stroke-dasharray="2 2.5"/>
-  <path d="M34 19.5 36.5 11l3.2-.8" fill="none" stroke="#e8c9a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M22 21.5h19l-2.4 21.6a3 3 0 0 1-3 2.7h-8.2a3 3 0 0 1-3-2.7z" fill="#fdf7ee"/>
-  <path d="M23.1 29h16.8l-1.6 14a2 2 0 0 1-2 1.8h-9.6a2 2 0 0 1-2-1.8z" fill="#8c5226"/>
-  <path d="M23.4 31.7c2.8 1.3 5.3-.9 8.1 0 2.9.9 5.3 1.3 8.1 0l-.3 2.6c-2.8 1.2-5.2-.4-7.8-.4-2.7 0-5.3 1.7-7.8.4z" fill="#f6e3cb"/>
-  <rect x="20" y="18.9" width="23" height="3.4" rx="1.7" fill="#e0a463"/>
-  <path d="M17 51h30" stroke="#e8c9a0" stroke-width="2.2" stroke-linecap="round"/>
-</svg>`;
+const LOGO = '<img src="assets/brand/logo.jpg" alt="">';
 
 const ICON = {
   line: `<svg viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="11" fill="#06C755"/>
@@ -27,9 +18,9 @@ const ICON = {
     <stop offset="1" stop-color="#4F5BD5"/></linearGradient></defs><rect width="48" height="48" rx="13" fill="url(#igG)"/>
     <rect x="12" y="12" width="24" height="24" rx="7" fill="none" stroke="#fff" stroke-width="3"/>
     <circle cx="24" cy="24" r="5.5" fill="none" stroke="#fff" stroke-width="3"/><circle cx="31.5" cy="16.5" r="1.8" fill="#fff"/></svg>`,
-  phone: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="24" fill="#2b1a0f"/>
+  phone: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="24" fill="#0d0d0e"/>
     <path fill="#fff" d="M19.3 13.5l2.6 5.6c.3.7.1 1.5-.4 2l-2.2 2c1.3 2.8 3.5 5 6.3 6.3l2-2.2c.5-.6 1.3-.7 2-.4l5.6 2.6c.8.4 1.2 1.2 1 2l-.8 3.4c-.2.8-.9 1.4-1.7 1.4C22.7 36.2 11.8 25.3 11.8 13c0-.8.6-1.5 1.4-1.7l3.4-.8c.8-.2 1.6.2 2 1z"/></svg>`,
-  web: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="24" fill="#8a5a34"/>
+  web: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="24" fill="#d4141c"/>
     <g fill="none" stroke="#fff" stroke-width="2.4"><circle cx="24" cy="24" r="12"/><path d="M12 24h24M24 12c-4 4-4 20 0 24M24 12c4 4 4 20 0 24"/></g></svg>`,
 };
 
@@ -68,16 +59,15 @@ function socialHTML(shop, lineId) {
     </div>${hours}`;
 }
 
-/** ส่วน LINE : QR รับแจ้งเตือน + QR ดูสถานะออนไลน์ */
+/** ส่วน LINE : QR รับแจ้งเตือน */
 function lineHTML(l) {
   if (!l?.enabled) return '';
   return `
     <div class="rc-line">
       <div class="rc-line-head">${ICON.line}<div><b>ติดตามสถานะออเดอร์ผ่าน LINE</b>
         <small>บาริสต้าจะแจ้งทุกขั้นตอน จนเครื่องดื่มพร้อมเสิร์ฟ</small></div></div>
-      <div class="rc-qrs ${l.track_qr ? 'two' : ''}">
-        <figure><img src="${l.qr}" alt="QR LINE"><figcaption>① สแกนด้วยแอป LINE<br>แล้ว<b>กดส่งข้อความ</b>ที่ขึ้นมา</figcaption></figure>
-        ${l.track_qr ? `<figure><img src="${l.track_qr}" alt="QR ติดตามออเดอร์"><figcaption>② ดูสถานะสด<br>ผ่านเว็บ</figcaption></figure>` : ''}
+      <div class="rc-qrs">
+        <figure><img src="${l.qr}" alt="QR LINE"><figcaption>สแกนด้วยแอป LINE<br>แล้ว<b>กดส่งข้อความ</b>ที่ขึ้นมา</figcaption></figure>
       </div>
       ${l.linked ? '<div class="rc-linked">✓ ผูก LINE กับออเดอร์นี้แล้ว</div>' : ''}
     </div>`;

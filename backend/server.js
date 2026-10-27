@@ -1,5 +1,5 @@
 /**
- * Espresso Flow - ระบบจัดการร้านกาแฟ
+ * ผู้ชายขายน้ำ - ระบบจัดการร้านเครื่องดื่ม
  * Backend Server (Express + PostgreSQL)
  */
 require('dotenv').config();
@@ -49,7 +49,7 @@ app.get('/api/health', async (req, res, next) => {
     const { c } = await db.get('SELECT COUNT(*) c FROM products');
     res.json({
       status: 'ok',
-      service: 'Espresso Flow API',
+      service: 'ผู้ชายขายน้ำ API',
       database: DB_LABEL,
       timezone: TIMEZONE,
       products: c,
@@ -96,11 +96,11 @@ async function start() {
   }
 
   app.listen(PORT, () => {
-    console.log('\n🧋  ผู้ชายขายน้ำ — ระบบจัดการร้าน (Espresso Flow)');
+    console.log('\n🧋  ผู้ชายขายน้ำ — ระบบจัดการร้าน');
     console.log(`    เซิร์ฟเวอร์: http://localhost:${PORT}`);
     console.log(`    ฐานข้อมูล : ${DB_LABEL}  (timezone ${TIMEZONE})`);
     if (publicUrl()) console.log(`    URL สาธารณะ: ${publicUrl()}  (ลูกค้าเปิดลิงก์ติดตามออเดอร์ได้)`);
-    console.log('    บัญชีทดสอบ: admin / admin123\n');
+    console.log('');
   });
 }
 

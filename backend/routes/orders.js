@@ -9,7 +9,9 @@ const { notifyStatus } = require('./line');
 const { emitOrderChanged } = require('../utils/order-events');
 
 /** ช่องทางชำระเงินที่ร้านเปิดรับ */
-const PAY_METHODS = ['cash', 'promptpay', 'transfer', 'wallet'];
+const PAY_METHODS = ['cash', 'promptpay'];
+/** ประเภทออเดอร์ที่ร้านเปิดรับ (ไม่มีเดลิเวอรี่) */
+const ORDER_TYPES = ['dine_in', 'takeaway'];
 
 // ---------------------------------------------------------------
 // GET /api/orders  : ประวัติออเดอร์ (มีตัวกรอง + แบ่งหน้า)
@@ -151,10 +153,10 @@ async function redeemPoints(b, member) {
   return { pointsUsed, pointsDiscount: pointsUsed * rate };
 }
 
-/** สลิปโอนเงิน (พร้อมเพย์ / โอน) ต้องตรงกับยอดบิลและยังไม่ถูกใช้ */
+/** สลิปพร้อมเพย์ต้องตรงกับยอดบิลและยังไม่ถูกใช้ */
 async function checkSlip(b, payment, total) {
   if (!b.slip_id) {
-    if (['promptpay', 'transfer'].includes(payment) && (await getSetting('require_slip', '1')) === '1') {
+    if (payment === 'promptpay' && (await getSetting('require_slip', '1')) === '1') {
       throw httpError(400, 'กรุณาตรวจสลิปโอนเงินก่อนยืนยันการชำระ');
     }
     return null;
@@ -226,8 +228,10 @@ router.post('/', auth, wrap(async (req, res) => {
   const total = round2(subtotal - discount);
 
   const payment = b.payment_method || 'cash';
-  // ร้านไม่รับบัตรเครดิตแล้ว (ค่า 'card' ยังอยู่ในฐานข้อมูลเพื่อให้ออเดอร์เก่าแสดงผลได้)
+  // รับแค่เงินสด/พร้อมเพย์ (CHECK ในฐานข้อมูลเป็น NOT VALID ออเดอร์เก่าช่องทางอื่นจึงยังแสดงผลได้)
   if (!PAY_METHODS.includes(payment)) return res.status(400).json({ error: 'ช่องทางชำระเงินนี้ไม่รองรับ' });
+  const orderType = b.order_type || 'takeaway';
+  if (!ORDER_TYPES.includes(orderType)) return res.status(400).json({ error: 'ประเภทออเดอร์นี้ไม่รองรับ' });
   const received = payment === 'cash' ? round2(Number(b.received || total)) : total;
   if (payment === 'cash' && received < total) {
     return res.status(400).json({ error: 'จำนวนเงินที่รับมาน้อยกว่ายอดที่ต้องชำระ' });
@@ -247,7 +251,7 @@ router.post('/', auth, wrap(async (req, res) => {
       (order_no,order_type,table_no,member_id,user_id,shift_id,subtotal,discount,promotion_id,total,
        cost_total,payment_method,received,change_amount,points_earned,status,note,paid_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,LOCALTIMESTAMP(0))`,
-      orderNo, b.order_type || 'takeaway', b.table_no || null, member?.id ?? null,
+      orderNo, orderType, b.table_no || null, member?.id ?? null,
       req.user.id, shift?.id ?? null, subtotal, discount, promo.promotionId, total,
       round2(costTotal), payment, received, round2(received - total), pointsEarned, status,
       b.note || null);

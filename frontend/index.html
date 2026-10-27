@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ผู้ชายขายน้ำ — ระบบจัดการร้าน</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥤</text></svg>">
+  <link rel="icon" type="image/jpeg" href="assets/brand/icon.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Mitr:wght@500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Charm:wght@700&display=swap" rel="stylesheet">
@@ -32,16 +32,7 @@
     <div class="login-card">
       <div class="login-hero">
         <div class="logo">
-          <span class="logo-mark"><svg class="brand-svg" viewBox="0 0 40 40" aria-hidden="true">
-            <path d="M22.5 11 25 2.5l3.2-.8" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M10.5 13h19l-2.4 21.6a3 3 0 0 1-3 2.7h-8.2a3 3 0 0 1-3-2.7z" fill="#fdf7ee"/>
-            <path d="M11.6 20.5h16.8l-1.6 14a2 2 0 0 1-2 1.8h-9.6a2 2 0 0 1-2-1.8z" fill="#8c5226"/>
-            <path d="M11.9 23.2c2.8 1.3 5.3-.9 8.1 0 2.9.9 5.3 1.3 8.1 0l-.3 2.6c-2.8 1.2-5.2-.4-7.8-.4-2.7 0-5.3 1.7-7.8.4z" fill="#f6e3cb"/>
-            <rect x="14" y="15.2" width="4.2" height="4.2" rx="1" fill="#e9f4fb" opacity=".9"/>
-            <rect x="20.6" y="14.6" width="4.2" height="4.2" rx="1" fill="#e9f4fb" opacity=".75" transform="rotate(12 22.7 16.7)"/>
-            <rect x="8.5" y="10.4" width="23" height="3.4" rx="1.7" fill="#e0a463"/>
-          </svg></span>
-          <span><b>ผู้ชายขายน้ำ</b><small>Coffee · Tea · Soda</small></span>
+          <img class="logo-full" src="assets/brand/logo.jpg" alt="ผู้ชายขายน้ำ">
         </div>
 
 
@@ -72,7 +63,7 @@
           <label for="username">ชื่อผู้ใช้</label>
           <div class="input-ico">
             <span class="ico">👤</span>
-            <input class="input" id="username" name="username" autocomplete="username" placeholder="เช่น admin" required>
+            <input class="input" id="username" name="username" autocomplete="username" placeholder="ชื่อผู้ใช้ของคุณ" required>
           </div>
         </div>
         <div class="field">
@@ -89,13 +80,6 @@
           <span class="lbl">เข้าสู่ระบบ</span><span class="arr">→</span>
         </button>
 
-        <div class="or"><span>หรือลองด้วยบัญชีตัวอย่าง</span></div>
-        <div class="demo-users">
-          <button type="button" data-u="admin" data-p="admin123"><i>👑</i><b>เจ้าของร้าน</b><small>admin</small></button>
-          <button type="button" data-u="manager" data-p="manager123"><i>💼</i><b>ผู้จัดการ</b><small>manager</small></button>
-          <button type="button" data-u="staff01" data-p="staff123"><i>🙋</i><b>พนักงาน</b><small>staff01</small></button>
-        </div>
-
         <p class="login-foot">“ทุกแก้วที่ดี เริ่มจากระบบที่ดี”</p>
       </form>
     </div>
@@ -105,15 +89,7 @@
   <div class="app" id="app">
     <aside class="sidebar" id="sidebar">
       <div class="brand">
-        <div class="mark"><svg class="brand-svg" viewBox="0 0 40 40" aria-hidden="true">
-        <path d="M22.5 11 25 2.5l3.2-.8" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M10.5 13h19l-2.4 21.6a3 3 0 0 1-3 2.7h-8.2a3 3 0 0 1-3-2.7z" fill="#fdf7ee"/>
-        <path d="M11.6 20.5h16.8l-1.6 14a2 2 0 0 1-2 1.8h-9.6a2 2 0 0 1-2-1.8z" fill="#8c5226"/>
-        <path d="M11.9 23.2c2.8 1.3 5.3-.9 8.1 0 2.9.9 5.3 1.3 8.1 0l-.3 2.6c-2.8 1.2-5.2-.4-7.8-.4-2.7 0-5.3 1.7-7.8.4z" fill="#f6e3cb"/>
-        <rect x="14" y="15.2" width="4.2" height="4.2" rx="1" fill="#e9f4fb" opacity=".9"/>
-        <rect x="20.6" y="14.6" width="4.2" height="4.2" rx="1" fill="#e9f4fb" opacity=".75" transform="rotate(12 22.7 16.7)"/>
-        <rect x="8.5" y="10.4" width="23" height="3.4" rx="1.7" fill="#e0a463"/>
-      </svg></div>
+        <div class="mark"><img src="assets/brand/icon.jpg" alt=""></div>
         <div><b id="brandName">ผู้ชายขายน้ำ</b><span id="brandBranch">สาขาหลัก</span></div>
       </div>
       <nav class="nav" id="nav"></nav>
